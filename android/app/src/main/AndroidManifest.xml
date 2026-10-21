@@ -99,5 +99,15 @@
             android:foregroundServiceType="microphone" />
 
         <receiver android:name=".telecom.CallActionReceiver" android:exported="false" />
+
+        <!-- Family AI: other 128bit apps borrow the on-device model. Exported, but every request is
+             signature-checked against bitcall's own key (FamilyAiPolicy), so only family apps get answers. -->
+        <service
+            android:name=".ai.FamilyAiService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="app.bit128.family.AI_GENERATE" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>
