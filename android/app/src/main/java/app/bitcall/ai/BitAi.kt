@@ -1,11 +1,17 @@
 package app.bitcall.ai
 
 import android.content.Context
+import android.net.Uri
+import android.os.SystemClock
 import android.provider.CallLog
 import app.bitcall.data.CallEntry
 import app.bitcall.data.Contact
 import app.bitcall.data.Phone
 import app.bitcall.data.Settings
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 /**
@@ -20,6 +26,7 @@ object BitAi {
     private var fast: Pair<String, LlamaEngine>? = null
 
     val nativeReady get() = LlamaBridge.available
+    private val speechLock = Mutex()
 
     private fun engine(context: Context, role: ModelRole): LlamaEngine? {
         val s = Settings.now
@@ -31,7 +38,7 @@ object BitAi {
         val path = ModelManager.file(context, spec).absolutePath
         val slot = if (wantMain) main else fast
         if (slot?.first == path) return slot.second
-        return LlamaEngine(path).also { if (wantMain) main = path to it else fast = path to it }
+        return LlamaEngine(context.applicationContext, path).also { if (wantMain) main = path to it else fast = path to it }
     }
 
     /** Drop the big model from memory (called when a call starts). */
@@ -41,13 +48,41 @@ object BitAi {
 
     suspend fun summarizeVoicemail(context: Context, transcript: String?): String? {
         if (transcript.isNullOrBlank()) return null
-        engine(context, ModelRole.MAIN)?.generate(
-            "You summarize voicemails in ONE line under 10 words, like: Dentist, confirm Thursday 2 PM. No quotes.",
-            transcript, maxTokens = 40,
-        )?.let { return it.lines().first() }
+        engine(context, ModelRole.MAIN)?.let { e -> summarizeWith(e, transcript)?.let { return it } }
         val first = transcript.split(Regex("(?<=[.!?])\\s")).first().trim()
         return if (first.length > 70) first.take(67) + "…" else first
     }
+
+    /** Whisper speech-to-text for voicemail and call recordings. Null when AI is off or the model isn't downloaded. */
+    suspend fun transcribe(context: Context, audio: Uri): String? {
+        val s = Settings.now
+        if (s.aiMode == "OFF" || !LlamaBridge.init(context)) return null
+        val spec = ModelCatalog.byId(s.aiSpeechModel) ?: return null
+        if (ModelManager.status(context, spec) != ModelStatus.Ready) return null
+        return withContext(Dispatchers.Default) {
+            speechLock.withLock {
+                val pcm = AudioDecoder.decode(context, audio) ?: return@withLock null
+                WhisperBridge.nativeTranscribe(ModelManager.file(context, spec).absolutePath, pcm, "auto", aiThreads)
+                    .trim().ifEmpty { null }
+            }
+        }
+    }
+
+    /** Settings → "Test AI": proves the engine and chosen model work on this phone. */
+    suspend fun selfTest(context: Context): String {
+        if (!LlamaBridge.init(context)) return "Engine missing from this build."
+        val role = if (Settings.now.aiMode == "FULL") ModelRole.MAIN else ModelRole.FAST
+        val e = engine(context, role) ?: return "Download the selected model first."
+        val t0 = SystemClock.elapsedRealtime()
+        val out = summarizeWith(e, "Hi it's Dr. Patel's dental office confirming your cleaning Thursday at 2 PM. Call 555-0100 to reschedule.")
+        val secs = (SystemClock.elapsedRealtime() - t0) / 1000.0
+        return if (out == null) "Model loaded but returned nothing." else "✓ \"$out\"  (%.1fs)".format(secs)
+    }
+
+    private suspend fun summarizeWith(e: TextEngine, transcript: String) = e.generate(
+        "You summarize voicemails in ONE line under 10 words, like: Dentist, confirm Thursday 2 PM. No quotes.",
+        transcript, maxTokens = 40, temperature = 0f,
+    )?.lines()?.first()
 
     // --- Ask your call log -------------------------------------------------------------------
 
@@ -60,13 +95,16 @@ object BitAi {
     )
 
     suspend fun parseQuestion(context: Context, question: String, contacts: List<Contact>): CallQuery {
+        // Rules first: they're instant and exact for the common phrasings. The model handles the rest.
+        val rules = RuleParser.parse(question, contacts)
+        if (rules.call || rules.name != null || rules.types.isNotEmpty() || rules.sinceDays != null) return rules
         engine(context, ModelRole.MAIN)?.generate(
             """Turn a question about the user's phone call history into JSON with keys:
                action ("filter" or "call"), name (string or null), types (array of "missed","incoming","outgoing"),
                since_days (int days ago or null), until_days (int days ago or null). Reply with JSON only.""".trimIndent(),
             question, maxTokens = 80, temperature = 0f,
         )?.let { raw -> runCatching { return fromJson(raw) } }
-        return RuleParser.parse(question, contacts)
+        return rules
     }
 
     private fun fromJson(raw: String): CallQuery {
@@ -75,8 +113,8 @@ object BitAi {
         return CallQuery(
             name = o.optString("name").takeIf { it.isNotBlank() && it != "null" },
             types = types.flatMap { RuleParser.typeIds(it) }.toSet(),
-            sinceDays = if (o.isNull("since_days")) null else o.optInt("since_days"),
-            untilDays = if (o.isNull("until_days")) null else o.optInt("until_days"),
+            sinceDays = o.optInt("since_days", 0).takeIf { it > 0 },
+            untilDays = o.optInt("until_days", 0).takeIf { it > 0 },
             call = o.optString("action") == "call",
         )
     }

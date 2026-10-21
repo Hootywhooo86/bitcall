@@ -29,11 +29,24 @@ the feature list and what's next.
 **Install a pre-release:** grab the latest APK from the repo's GitHub Releases (marked *Pre-release*), install it,
 open Bitcall and accept **Set as default phone app**.
 
-**Build locally:**
+**Build locally** (needs the Android SDK with NDK 27.3 + CMake 3.31.6 for the AI engine):
 
 ```sh
+git submodule update --init --recursive        # llama.cpp + whisper.cpp
 cd android
 ./gradlew testDebugUnitTest assembleRelease   # APK → app/build/outputs/apk/release/
+```
+
+Release signing reads `BITCALL_KEYSTORE_PATH`, `BITCALL_KEYSTORE_PASSWORD`, `BITCALL_KEY_ALIAS`, `BITCALL_KEY_PASSWORD`
+(CI gets them from repo secrets). Without them the build is debug-signed.
+
+**On-device AI engine** lives in `android/app/src/main/cpp` (`bitcall_ai.cpp` core + `bitcall_jni.cpp` glue).
+Desktop smoke test with real models:
+
+```sh
+cmake -S android/app/src/main/cpp -B /tmp/aibuild -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build /tmp/aibuild --target bitcall_ai_test
+/tmp/aibuild/bitcall_ai_test Qwen3.5-0.8B-Q4_K_M.gguf ggml-base-q5_1.bin android/app/src/main/cpp/whisper.cpp/samples/jfk.wav
 ```
 
 Code map: `data/` (contacts, call log, settings, notes, voicemail) · `telecom/` (InCallService, screening, ringer,
@@ -59,5 +72,5 @@ recorder, notifications) · `assist/` (Hold for Me, Magic Cue, transcriber, 8-bi
 - [ ] Formspree ID in `index.html`
 - [x] Product direction locked: Android default dialer, Pixel-style, Call Assist, opt-in local AI
 - [x] App scaffold + 0.1 pre-release (Android 11+)
-- [ ] llama.cpp / whisper.cpp native engines
-- [ ] Release signing key in repo secrets
+- [x] llama.cpp / whisper.cpp native engines (0.2)
+- [ ] Release signing key added to repo secrets (key generated; see GITHUB_SECRETS.txt from the 0.2 hand-off)

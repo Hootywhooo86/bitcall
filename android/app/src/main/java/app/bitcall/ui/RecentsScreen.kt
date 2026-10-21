@@ -176,7 +176,10 @@ private fun RecentDetails(e: CallEntry, memo: app.bitcall.data.CallMemo?, onAdd:
             PixelChip("🗑", false) { CallLogRepo.delete(context, e.id); onChanged() }
         }
         if (memo != null) {
-            memo.recordingUri?.let { RecordingPlayer(it) }
+            memo.recordingUri?.let { uri ->
+                RecordingPlayer(uri)
+                if (memo.transcript.isBlank() && LocalBitSettings.current.aiMode != "OFF") TranscribeRecording(memo, uri)
+            }
             if (memo.notes.isNotBlank()) {
                 Text("🗒 " + memo.notes, style = px(8, p.text), modifier = Modifier.padding(top = 10.dp))
                 NoteActions(memo, e.name ?: Phone.pretty(e.number))
@@ -260,6 +263,25 @@ private fun NoteActions(memo: app.bitcall.data.CallMemo, who: String) {
                     .putExtra(android.provider.CalendarContract.Events.DESCRIPTION, "From call with $who:\n${memo.notes}")
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             )
+        }
+    }
+}
+
+/** Whisper the call recording into a transcript saved with the call (then ✨ TIDY can turn it into notes). */
+@Composable
+private fun TranscribeRecording(memo: app.bitcall.data.CallMemo, uri: String) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf(false) }
+    Row(Modifier.padding(top = 8.dp)) {
+        PixelChip(if (busy) "🧠 LISTENING…" else "🧠 TRANSCRIBE", busy) {
+            if (busy) return@PixelChip
+            busy = true
+            scope.launch {
+                val text = BitAi.transcribe(context, Uri.parse(uri))
+                if (text != null) NotesStore.upsert(memo.copy(transcript = text, notes = memo.notes.ifBlank { text }))
+                busy = false
+            }
         }
     }
 }

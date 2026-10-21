@@ -19,6 +19,8 @@ jobs:
         working-directory: android
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive # llama.cpp + whisper.cpp
 
       - uses: actions/setup-java@v4
         with:
@@ -26,6 +28,15 @@ jobs:
           java-version: "17"
 
       - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install NDK + CMake for the on-device AI engine
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.3.13750724" "cmake;3.31.6" > /dev/null
+
+      - name: Version
+        # Offset keeps CI builds above the 0.2.0 APK (versionCode 100) built by hand.
+        run: |
+          echo "BITCALL_VERSION_CODE=$((100 + ${{ github.run_number }}))" >> "$GITHUB_ENV"
+          echo "BITCALL_VERSION_NAME=0.2.${{ github.run_number }}-pre" >> "$GITHUB_ENV"
 
       # Optional but recommended: a stable signing key so pre-releases install as updates over each other.
       # Add repo secrets BITCALL_KEYSTORE_BASE64, BITCALL_KEYSTORE_PASSWORD, BITCALL_KEY_ALIAS, BITCALL_KEY_PASSWORD.
@@ -37,7 +48,7 @@ jobs:
             echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/bitcall.jks"
             echo "BITCALL_KEYSTORE_PATH=$RUNNER_TEMP/bitcall.jks" >> "$GITHUB_ENV"
           else
-            echo "::warning::No signing secrets set; APK is debug-signed and won't upgrade over a differently-signed install."
+            echo "::warning::No signing secrets set; building a debug-signed artifact only (no pre-release published)."
           fi
 
       - name: Test and build
@@ -45,11 +56,9 @@ jobs:
           BITCALL_KEYSTORE_PASSWORD: ${{ secrets.BITCALL_KEYSTORE_PASSWORD }}
           BITCALL_KEY_ALIAS: ${{ secrets.BITCALL_KEY_ALIAS }}
           BITCALL_KEY_PASSWORD: ${{ secrets.BITCALL_KEY_PASSWORD }}
-          BITCALL_VERSION_CODE: ${{ github.run_number }}
-          BITCALL_VERSION_NAME: 0.1.${{ github.run_number }}-pre
         run: |
           ./gradlew testDebugUnitTest lintDebug assembleRelease
-          cp app/build/outputs/apk/release/app-release.apk "Bitcall-0.1.${{ github.run_number }}-pre.apk"
+          cp app/build/outputs/apk/release/app-release.apk "Bitcall-$BITCALL_VERSION_NAME.apk"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -57,12 +66,15 @@ jobs:
           path: android/Bitcall-*.apk
 
       - name: Publish pre-release
+        # Only release-key builds are published, so every pre-release installs over the last one.
+        if: env.BITCALL_KEYSTORE_PATH != ''
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v0.1.{0}-pre', github.run_number) }}
-          name: Bitcall 0.1.${{ github.run_number }} (pre-release)
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v0.2.{0}-pre', github.run_number) }}
+          name: Bitcall ${{ env.BITCALL_VERSION_NAME }} (pre-release)
           prerelease: true
           files: android/Bitcall-*.apk
           body: |
             Pre-release build for testing. Install the APK on an Android 11+ phone, open Bitcall,
-            and accept "Set as default phone app" when asked.
+            and accept "Set as default phone app" when asked. Signed with the Bitcall release key,
+            so it installs over earlier 0.2.x builds as an update.

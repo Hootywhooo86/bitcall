@@ -49,11 +49,16 @@ fun VoicemailScreen() {
                     DateUtils.getRelativeTimeSpanString(v.date).toString() + " · " + DateUtils.formatElapsedTime(v.durationSec),
                     style = px(7, p.dim), modifier = Modifier.padding(top = 6.dp),
                 )
+                // Voicemail brain: carrier transcript, else Whisper on the phone; then a one-line summary.
+                var transcript by remember(v.id) { mutableStateOf(v.transcript?.takeIf { it.isNotBlank() } ?: VoicemailTranscripts.get(context, v.id)) }
                 var summary by remember(v.id) { mutableStateOf<String?>(null) }
-                LaunchedEffect(v.id) { summary = BitAi.summarizeVoicemail(context, v.transcript) }
+                LaunchedEffect(v.id) {
+                    if (transcript == null) BitAi.transcribe(context, v.uri)?.let { transcript = it; VoicemailTranscripts.put(context, v.id, it) }
+                    summary = BitAi.summarizeVoicemail(context, transcript)
+                }
                 summary?.let { Text("🧠 $it", style = px(9, p.accent), modifier = Modifier.padding(top = 10.dp)) }
                 Text(
-                    v.transcript?.takeIf { it.isNotBlank() } ?: "(no transcript from carrier)",
+                    transcript ?: "(no transcript yet)",
                     style = px(8, p.text), modifier = Modifier.padding(top = 10.dp),
                 )
                 Row2 {
@@ -72,4 +77,11 @@ private fun Row2(content: @Composable () -> Unit) {
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
         verticalAlignment = androidx.compose.ui.Alignment.Bottom,
     ) { content() }
+}
+
+/** Whisper transcripts for voicemails the carrier didn't transcribe, cached so each runs once. */
+private object VoicemailTranscripts {
+    private fun prefs(c: android.content.Context) = c.getSharedPreferences("vm_transcripts", android.content.Context.MODE_PRIVATE)
+    fun get(c: android.content.Context, id: Long): String? = prefs(c).getString(id.toString(), null)
+    fun put(c: android.content.Context, id: Long, text: String) = prefs(c).edit().putString(id.toString(), text).apply()
 }

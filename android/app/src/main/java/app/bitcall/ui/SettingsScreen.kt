@@ -46,6 +46,7 @@ import app.bitcall.data.Blocklist
 import app.bitcall.data.Phone
 import app.bitcall.data.Settings
 import app.bitcall.telecom.RecorderService
+import kotlinx.coroutines.launch
 
 enum class Section(val title: String, val icon: String, val group: String) {
     AI("On-device AI (beta)", "🧠", "Bitcall AI"),
@@ -309,10 +310,18 @@ private fun AiSettings() {
         else -> "Small model during calls; the main model after calls for voicemail summaries, tidy notes and call-log questions."
     })
     if (!app.bitcall.ai.BitAi.nativeReady) {
-        Text("⚠ This pre-release doesn't include the llama.cpp engine yet. You can download models now; AI answers switch on in the build that adds the engine. Until then the rule-based versions run.",
-            style = px(7, p.bad), modifier = Modifier.padding(vertical = 8.dp))
+        Text("⚠ AI engine missing from this build.", style = px(7, p.bad), modifier = Modifier.padding(vertical = 8.dp))
     }
     if (s.aiMode == "OFF") return
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var test by remember { mutableStateOf<String?>(null) }
+    Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        PixelChip("▶ TEST AI", false) {
+            test = "Thinking… (first run loads the model)"
+            scope.launch { test = app.bitcall.ai.BitAi.selfTest(context) }
+        }
+    }
+    test?.let { Text(it, style = px(7, p.good), modifier = Modifier.padding(bottom = 6.dp)) }
     app.bitcall.ai.ModelRole.entries.forEach { role ->
         if (role == app.bitcall.ai.ModelRole.MAIN && s.aiMode != "FULL") return@forEach
         val chosen = when (role) {

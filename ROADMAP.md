@@ -18,20 +18,24 @@
   "ask your call log" search, voicemail summaries, smart decline, tidy notes → calendar event, spam score, relationship nudges.
   Every feature has a rule-based fallback.
 
+## ✅ In 0.2
+- **Working on-device AI engine**: llama.cpp + whisper.cpp compiled into the APK (`android/app/src/main/cpp`),
+  one shared ggml, 7 CPU variants picked at runtime for the phone's Arm generation
+- Qwen runs through the model's own chat template with thinking turned off for quick answers
+- Whisper transcribes voicemails without a carrier transcript, and call recordings (🧠 TRANSCRIBE in Recents)
+- Settings → On-device AI → ▶ TEST AI checks the engine + model on the phone and shows the speed
+- Release signing key; CI publishes signed pre-releases that install over each other
+
 ## 🔜 Next
-1. **llama.cpp engine** — add `android/app/src/main/cpp` with llama.cpp as a submodule + a JNI shim implementing
-   `LlamaBridge.nativeLoad / nativeGenerate / nativeFree` (see `ai/Engines.kt`). Needs the NDK + CMake in CI.
-2. **whisper.cpp engine** — same pattern for `WhisperBridge.nativeTranscribe`; decode voicemail audio to 16 kHz PCM
-   with MediaExtractor/MediaCodec, then summarise with the main model ("voicemail brain").
-3. **Release signing key** in repo secrets so pre-releases upgrade cleanly.
-4. **Home-screen favorites widget.**
-5. **Pixel mascot** that reacts to calls (sleeping with 0 missed calls, panicking at 5+), level-up animation,
+1. Stream tokens to the screen as they're generated; GPU (Vulkan/OpenCL) backend for faster 4B answers.
+2. **Home-screen favorites widget.**
+3. **Pixel mascot** that reacts to calls (sleeping with 0 missed calls, panicking at 5+), level-up animation,
    more achievements (Call Streak, Inbox Zero Voicemail).
-6. **Contact themes** — per-favorite colour + ringtone sprite.
-7. **Voice commands** — pixel-mascot assistant to dial / text / look people up hands-free.
-8. **Twilio route** (optional) — real AI Call Screen that talks to callers, studio-quality two-sided recording,
+4. **Contact themes** — per-favorite colour + ringtone sprite.
+5. **Voice commands** — pixel-mascot assistant to dial / text / look people up hands-free.
+6. **Twilio route** (optional) — real AI Call Screen that talks to callers, studio-quality two-sided recording,
    reliable Hold for Me.
-9. Community spam lists for the spam sniffer.
+7. Community spam lists for the spam sniffer.
 
 ## Platform limits worth knowing
 - Android doesn't let third-party apps read call audio. Recording, Hold for Me and live transcripts use the
