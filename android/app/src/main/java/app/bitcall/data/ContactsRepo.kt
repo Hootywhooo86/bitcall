@@ -19,6 +19,21 @@ data class Contact(
     val primary: String get() = numbers.firstOrNull().orEmpty()
 }
 
+/** Everything shown on the contact details page. */
+data class ContactInfo(
+    val id: Long,
+    val name: String,
+    val photoUri: String?,
+    val starred: Boolean,
+    val lookupUri: Uri,
+    val phones: List<Pair<String, String>>, // label to number
+    val emails: List<String>,
+    val addresses: List<String>,
+    val company: String?,
+    val birthday: String?,
+    val notes: String?,
+)
+
 object ContactsRepo {
     const val GOOGLE = "com.google"
 
@@ -142,4 +157,49 @@ object ContactsRepo {
             }
         }
     }.getOrNull().orEmpty()
+
+    fun info(context: Context, contactId: Long): ContactInfo? = runCatching {
+        val cr = context.contentResolver
+        val head = cr.query(
+            ContactsContract.Contacts.CONTENT_URI,
+            arrayOf(
+                ContactsContract.Contacts.DISPLAY_NAME_PRIMARY, ContactsContract.Contacts.PHOTO_URI,
+                ContactsContract.Contacts.STARRED, ContactsContract.Contacts.LOOKUP_KEY,
+            ),
+            "${ContactsContract.Contacts._ID}=?", arrayOf(contactId.toString()), null,
+        )?.use { c -> if (c.moveToFirst()) listOf(c.getString(0), c.getString(1), c.getInt(2).toString(), c.getString(3)) else null }
+            ?: return@runCatching null
+        val phones = mutableListOf<Pair<String, String>>()
+        val emails = mutableListOf<String>()
+        val addresses = mutableListOf<String>()
+        var company: String? = null
+        var birthday: String? = null
+        var notes: String? = null
+        cr.query(
+            ContactsContract.Data.CONTENT_URI,
+            arrayOf(ContactsContract.Data.MIMETYPE, ContactsContract.Data.DATA1, ContactsContract.Data.DATA2, ContactsContract.Data.DATA3),
+            "${ContactsContract.Data.CONTACT_ID}=?", arrayOf(contactId.toString()), null,
+        )?.use { c ->
+            while (c.moveToNext()) {
+                val v = c.getString(1)?.takeIf { it.isNotBlank() } ?: continue
+                when (c.getString(0)) {
+                    CommonDataKinds.Phone.CONTENT_ITEM_TYPE ->
+                        if (phones.none { Phone.key(it.second) == Phone.key(v) }) phones += CommonDataKinds.Phone.getTypeLabel(
+                            context.resources, c.getInt(2), c.getString(3),
+                        ).toString() to v
+                    CommonDataKinds.Email.CONTENT_ITEM_TYPE -> emails += v
+                    CommonDataKinds.StructuredPostal.CONTENT_ITEM_TYPE -> addresses += v
+                    CommonDataKinds.Organization.CONTENT_ITEM_TYPE -> company = v
+                    CommonDataKinds.Event.CONTENT_ITEM_TYPE ->
+                        if (c.getInt(2) == CommonDataKinds.Event.TYPE_BIRTHDAY) birthday = v
+                    CommonDataKinds.Note.CONTENT_ITEM_TYPE -> notes = v
+                }
+            }
+        }
+        ContactInfo(
+            contactId, head[0] ?: "", head[1], head[2] == "1",
+            ContactsContract.Contacts.getLookupUri(contactId, head[3]),
+            phones, emails.distinct(), addresses.distinct(), company, birthday, notes,
+        )
+    }.getOrNull()
 }

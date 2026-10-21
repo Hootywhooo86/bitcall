@@ -55,7 +55,7 @@ import kotlinx.coroutines.launch
 enum class RecentFilter(val label: String) { ALL("ALL"), MISSED("MISSED"), ENEMIES("👾 ENEMIES") }
 
 @Composable
-fun RecentsScreen(calls: List<CallEntry>, contacts: List<Contact>, onChanged: () -> Unit) {
+fun RecentsScreen(calls: List<CallEntry>, contacts: List<Contact>, onChanged: () -> Unit, onOpen: (Long) -> Unit) {
     val p = LocalPalette.current
     val s = LocalBitSettings.current
     var filter by remember { mutableStateOf(RecentFilter.ALL) }
@@ -64,6 +64,7 @@ fun RecentsScreen(calls: List<CallEntry>, contacts: List<Contact>, onChanged: ()
     val memos by NotesStore.memos.collectAsState()
     val stats = remember(calls) { CallLogRepo.stats(calls) }
     val photos = remember(contacts) { contacts.flatMap { c -> c.numbers.map { Phone.key(it) to c.photoUri } }.toMap() }
+    val contactIds = remember(contacts) { contacts.flatMap { c -> c.numbers.map { Phone.key(it) to c.id } }.toMap() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var question by remember { mutableStateOf("") }
@@ -118,7 +119,7 @@ fun RecentsScreen(calls: List<CallEntry>, contacts: List<Contact>, onChanged: ()
         items(shown, key = { it.id }) { e ->
             val memo = remember(memos, e) { NotesStore.match(e.number, e.date) }
             RecentRow(e, photos[Phone.key(e.number)], memo != null, scores[e.number] ?: 0, expanded == e.id) { expanded = if (expanded == e.id) null else e.id }
-            if (expanded == e.id) RecentDetails(e, memo, onAdd = { addNumber = e.number }, onChanged = onChanged)
+            if (expanded == e.id) RecentDetails(e, memo, contactIds[Phone.key(e.number)], onOpen, onAdd = { addNumber = e.number }, onChanged = onChanged)
         }
     }
     addNumber?.let { n -> AddContactDialog(n, onDismiss = { addNumber = null }, onSaved = { addNumber = null; onChanged() }) }
@@ -160,17 +161,18 @@ private fun RecentRow(e: CallEntry, photo: String?, hasMemo: Boolean, score: Int
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun RecentDetails(e: CallEntry, memo: app.bitcall.data.CallMemo?, onAdd: () -> Unit, onChanged: () -> Unit) {
+private fun RecentDetails(e: CallEntry, memo: app.bitcall.data.CallMemo?, contactId: Long?, onOpen: (Long) -> Unit, onAdd: () -> Unit, onChanged: () -> Unit) {
     val p = LocalPalette.current
     val context = LocalContext.current
     val enemy = Phone.isSpam(e.number)
     Column(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, bottom = 12.dp)) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             PixelChip("📞 CALL", false) { Phone.call(context, e.number) }
+            if (contactId != null) PixelChip("👤 DETAILS", false) { onOpen(contactId) }
             PixelChip("💬 TEXT", false) {
                 context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.fromParts("smsto", e.number, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
-            if (e.name == null) PixelChip("+ CONTACT", false, onAdd)
+            if (contactId == null) PixelChip("+ CONTACT", false, onAdd)
             PixelChip(if (enemy) "✓ NOT SPAM" else "👾 SPAM", enemy) { toggleSpam(e.number) }
             PixelChip("⊘ BLOCK", false) { Blocklist.block(context, e.number); onChanged() }
             PixelChip("🗑", false) { CallLogRepo.delete(context, e.id); onChanged() }

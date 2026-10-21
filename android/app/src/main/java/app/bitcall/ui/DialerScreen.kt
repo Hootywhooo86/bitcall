@@ -66,15 +66,15 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.Bottom) {
             items(matches, key = { it.id }) { c ->
                 Row(
-                    Modifier.fillMaxWidth().clickable { Phone.call(context, c.primary) }.padding(vertical = 6.dp),
+                    Modifier.fillMaxWidth().clickable { Phone.call(context, c.primary) }.padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    PixelAvatar(c.name, c.photoUri, 34.dp, enemy = Phone.isSpam(c.primary))
-                    Column(Modifier.padding(start = 12.dp).weight(1f)) {
-                        Text(c.name, style = px(10, p.text), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(Phone.pretty(c.primary), style = px(8, p.dim), modifier = Modifier.padding(top = 4.dp))
+                    PixelAvatar(c.name, c.photoUri, 48.dp, enemy = Phone.isSpam(c.primary))
+                    Column(Modifier.padding(start = 14.dp).weight(1f)) {
+                        Text(c.name, style = px(13, p.text), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(Phone.pretty(c.primary), style = px(10, p.dim), modifier = Modifier.padding(top = 6.dp))
                     }
-                    if (c.starred) Text("★", style = px(12, p.accent))
+                    if (c.starred) Text("★", style = px(16, p.accent))
                 }
             }
         }
@@ -158,20 +158,20 @@ fun SpeedDialPicker(slot: Int, typed: String, contacts: List<Contact>, onDismiss
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = p.surface,
-        title = { Text("SPEED DIAL $slot", style = px(12, p.accent)) },
+        title = { Text("SPEED DIAL $slot", style = px(16, p.accent)) },
         text = {
-            LazyColumn(Modifier.height(320.dp)) {
+            LazyColumn(Modifier.height(420.dp)) {
                 if (typed.isNotEmpty()) item {
-                    Text("⚡ Use $typed", style = px(9, p.text), modifier = Modifier.fillMaxWidth().clickable { assign(typed) }.padding(vertical = 10.dp))
+                    Text("⚡ Use $typed", style = px(12, p.text), modifier = Modifier.fillMaxWidth().clickable { assign(typed) }.padding(vertical = 12.dp))
                 }
                 items(contacts.sortedByDescending { it.starred }, key = { it.id }) { c ->
-                    Row(Modifier.fillMaxWidth().clickable { assign(c.primary) }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        PixelAvatar(c.name, c.photoUri, 28.dp)
-                        Text(c.name, style = px(9, p.text), modifier = Modifier.padding(start = 10.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Row(Modifier.fillMaxWidth().clickable { assign(c.primary) }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        PixelAvatar(c.name, c.photoUri, 44.dp)
+                        Text(c.name, style = px(12, p.text), modifier = Modifier.padding(start = 12.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("CANCEL", style = px(9, p.dim)) } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("CANCEL", style = px(11, p.dim)) } },
     )
 }

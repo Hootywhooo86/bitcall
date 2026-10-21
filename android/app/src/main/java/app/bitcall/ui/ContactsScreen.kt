@@ -40,7 +40,7 @@ import kotlinx.coroutines.withContext
 import androidx.compose.runtime.rememberCoroutineScope
 
 @Composable
-fun ContactsScreen(contacts: List<Contact>, onChanged: () -> Unit) {
+fun ContactsScreen(contacts: List<Contact>, onChanged: () -> Unit, onOpen: (Contact) -> Unit) {
     val p = LocalPalette.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -66,10 +66,10 @@ fun ContactsScreen(contacts: List<Contact>, onChanged: () -> Unit) {
         LazyColumn(Modifier.fillMaxSize()) {
             if (favorites.isNotEmpty()) {
                 item { SectionTitle("★ Favorites") }
-                items(favorites, key = { "f${it.id}" }) { c -> ContactRow(c) { star(context, scope, c, onChanged) } }
+                items(favorites, key = { "f${it.id}" }) { c -> ContactRow(c, { onOpen(c) }) { star(context, scope, c, onChanged) } }
                 item { SectionTitle("All contacts") }
             }
-            items(shown, key = { it.id }) { c -> ContactRow(c) { star(context, scope, c, onChanged) } }
+            items(shown, key = { it.id }) { c -> ContactRow(c, { onOpen(c) }) { star(context, scope, c, onChanged) } }
             if (contacts.isEmpty()) item {
                 Text("No contacts yet — tap + ADD.\nNew contacts save to your Google account.", style = px(8, p.dim), modifier = Modifier.padding(16.dp))
             }
@@ -86,24 +86,23 @@ private fun star(context: android.content.Context, scope: kotlinx.coroutines.Cor
 }
 
 @Composable
-private fun ContactRow(c: Contact, onStar: () -> Unit) {
+private fun ContactRow(c: Contact, onOpen: () -> Unit, onStar: () -> Unit) {
     val p = LocalPalette.current
-    val context = LocalContext.current
     val enemy = c.numbers.any { Phone.isSpam(it) }
     Row(
-        Modifier.fillMaxWidth().clickable { Phone.call(context, c.primary) }.padding(vertical = 8.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        PixelAvatar(c.name, c.photoUri, 40.dp, enemy)
-        Column(Modifier.weight(1f).padding(start = 12.dp)) {
-            Text(c.name, style = px(10, p.text), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(Phone.pretty(c.primary), style = px(8, p.dim))
+        PixelAvatar(c.name, c.photoUri, 52.dp, enemy)
+        Column(Modifier.weight(1f).padding(start = 14.dp)) {
+            Text(c.name, style = px(13, p.text), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(Phone.pretty(c.primary), style = px(10, p.dim))
                 if (enemy) EnemyBadge(Modifier.padding(start = 6.dp))
             }
         }
         Text(
-            if (c.starred) "★" else "☆", style = px(16, if (c.starred) p.accent else p.dim),
+            if (c.starred) "★" else "☆", style = px(20, if (c.starred) p.accent else p.dim),
             modifier = Modifier.clickable(onClick = onStar).padding(12.dp),
         )
     }

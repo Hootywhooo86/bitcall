@@ -131,6 +131,7 @@ fun Home(activity: MainActivity, incomingDial: MutableStateFlow<String?>) {
     val context = LocalContext.current
     var tab by remember { mutableStateOf(Tab.KEYPAD) }
     var settings by remember { mutableStateOf(false) }
+    var details by remember { mutableStateOf<Long?>(null) }
     var settingsSection by remember { mutableStateOf<Section?>(null) }
     var digits by remember { mutableStateOf("") }
     var refresh by remember { mutableIntStateOf(0) }
@@ -158,7 +159,11 @@ fun Home(activity: MainActivity, incomingDial: MutableStateFlow<String?>) {
             SettingsScreen(onBack = { settings = false; settingsSection = null }, onChanged = { refresh++ }, initial = settingsSection)
             return@Column
         }
-        TopBar(contacts.filter { it.starred }, onSettings = { settings = true }) { Phone.call(context, it) }
+        details?.let { id ->
+            ContactDetailsScreen(id, calls, onBack = { details = null }, onChanged = { refresh++ })
+            return@Column
+        }
+        TopBar(contacts.filter { it.starred }, onSettings = { settings = true }, onInfo = { details = it.id }) { Phone.call(context, it) }
         val denied by activity.roleDenied.collectAsStateWithLifecycle()
         if (!isDefault && denied) {
             Card(Modifier.padding(horizontal = 12.dp).fillMaxWidth()) {
@@ -197,8 +202,8 @@ fun Home(activity: MainActivity, incomingDial: MutableStateFlow<String?>) {
         Box(Modifier.weight(1f)) {
             when (tab) {
                 Tab.KEYPAD -> DialerScreen(digits, { digits = it }, contacts, onChanged = { refresh++ })
-                Tab.RECENTS -> RecentsScreen(calls, contacts, onChanged = { refresh++ })
-                Tab.CONTACTS -> ContactsScreen(contacts, onChanged = { refresh++ })
+                Tab.RECENTS -> RecentsScreen(calls, contacts, onChanged = { refresh++ }, onOpen = { details = it })
+                Tab.CONTACTS -> ContactsScreen(contacts, onChanged = { refresh++ }, onOpen = { details = it.id })
                 Tab.VOICEMAIL -> VoicemailScreen()
             }
         }
@@ -219,11 +224,10 @@ fun Home(activity: MainActivity, incomingDial: MutableStateFlow<String?>) {
 
 /** Title bar with the ★ favourites drop-down (starred contacts sync with Google Contacts). */
 @Composable
-private fun TopBar(favorites: List<Contact>, onSettings: () -> Unit, onCall: (String) -> Unit) {
+private fun TopBar(favorites: List<Contact>, onSettings: () -> Unit, onInfo: (Contact) -> Unit, onCall: (String) -> Unit) {
     val p = LocalPalette.current
     var open by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text("BITCALL", style = px(18, p.accent, glow = p.accent))
         Spacer(Modifier.weight(1f))
         Box {
             PixelButton(p.surface2, onClick = { open = true }) {
@@ -231,15 +235,18 @@ private fun TopBar(favorites: List<Contact>, onSettings: () -> Unit, onCall: (St
             }
             DropdownMenu(open, onDismissRequest = { open = false }, modifier = Modifier.background(p.surface)) {
                 if (favorites.isEmpty()) {
-                    DropdownMenuItem(text = { Text("No favorites yet.\nStar a contact ☆", style = px(8, p.dim)) }, onClick = { open = false })
+                    DropdownMenuItem(text = { Text("No favorites yet.\nStar a contact ☆", style = px(10, p.dim)) }, onClick = { open = false })
                 }
                 favorites.forEach { c ->
                     DropdownMenuItem(
-                        leadingIcon = { PixelAvatar(c.name, c.photoUri, 32.dp) },
+                        leadingIcon = { PixelAvatar(c.name, c.photoUri, 44.dp) },
+                        trailingIcon = {
+                            Text("ⓘ", style = px(16, p.accent), modifier = Modifier.clickable { open = false; onInfo(c) }.padding(10.dp))
+                        },
                         text = {
                             Column {
-                                Text(c.name, style = px(9, p.text))
-                                Text(Phone.pretty(c.primary), style = px(7, p.dim), modifier = Modifier.padding(top = 4.dp))
+                                Text(c.name, style = px(12, p.text))
+                                Text(Phone.pretty(c.primary), style = px(10, p.dim), modifier = Modifier.padding(top = 6.dp))
                             }
                         },
                         onClick = { open = false; onCall(c.primary) },

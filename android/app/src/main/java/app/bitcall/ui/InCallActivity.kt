@@ -58,6 +58,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.bitcall.assist.MagicCue
 import app.bitcall.data.Phone
 import app.bitcall.telecom.CallManager
@@ -111,8 +112,16 @@ private fun InCallScreen(ui: CallUi) {
         if (ok) RecorderService.start(context)
     }
 
+    // Live transcript fills the middle automatically whenever it has text.
+    val session by CallManager.session.collectAsState()
+    val transcript by (session?.transcript ?: CallManager.partial).collectAsState()
+    val partial by CallManager.partial.collectAsState()
+    val showTranscript = panel == Panel.NONE && (transcript.isNotBlank() || partial.isNotBlank())
+    // With nothing to show in the middle, the caller block gets the space instead of leaving a gap.
+    val hasContent = panel != Panel.NONE || showTranscript
+
     Column(
-        Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 20.dp),
+        Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         val dialing = ui.state in setOf(Call.STATE_DIALING, Call.STATE_CONNECTING, Call.STATE_NEW, Call.STATE_SELECT_PHONE_ACCOUNT)
@@ -123,18 +132,19 @@ private fun InCallScreen(ui: CallUi) {
                 dialing -> "▶ OUTGOING CALL"
                 else -> ""
             },
-            style = px(9, if (ui.enemy && ringing) p.bad else p.dim),
+            style = px(10, if (ui.enemy && ringing) p.bad else p.dim),
             modifier = Modifier.padding(top = 16.dp).alpha(if (ringing) blink() else 1f),
         )
-        Spacer(Modifier.height(16.dp))
-        RingingAvatar(ui, active = ringing || dialing)
-        Spacer(Modifier.height(14.dp))
-        Text(ui.name ?: Phone.pretty(ui.number), style = px(16, p.text, glow = p.accent), textAlign = TextAlign.Center)
-        if (ui.name != null) Text(Phone.pretty(ui.number), style = px(9, p.dim), modifier = Modifier.padding(top = 8.dp))
-        if (ui.enemy) Row(Modifier.padding(top = 10.dp)) { EnemyBadge(); Text("  BOSS LEVEL: POSSIBLE SPAM", style = px(7, p.bad)) }
-        ui.policyNote?.let { Text(it, style = px(7, p.dim), modifier = Modifier.padding(top = 6.dp)) }
-        Text(statusText(ui) + if (dialing) dots() else "", style = px(9, p.accent), modifier = Modifier.padding(top = 10.dp))
-        if (recording) Text("● REC", style = px(9, p.bad), modifier = Modifier.padding(top = 8.dp))
+        if (!hasContent) Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(8.dp))
+        RingingAvatar(ui, active = ringing || dialing, size = if (hasContent) 96.dp else 176.dp)
+        Spacer(Modifier.height(12.dp))
+        Text(ui.name ?: Phone.pretty(ui.number), style = px(if (hasContent) 16 else 20, p.text, glow = p.accent), textAlign = TextAlign.Center)
+        if (ui.name != null) Text(Phone.pretty(ui.number), style = px(11, p.dim), modifier = Modifier.padding(top = 8.dp))
+        if (ui.enemy) Row(Modifier.padding(top = 10.dp)) { EnemyBadge(); Text("  BOSS LEVEL: POSSIBLE SPAM", style = px(8, p.bad)) }
+        ui.policyNote?.let { Text(it, style = px(8, p.dim), modifier = Modifier.padding(top = 6.dp)) }
+        Text(statusText(ui) + if (dialing) dots() else "", style = px(12, p.accent), modifier = Modifier.padding(top = 10.dp))
+        if (recording) Text("● REC", style = px(10, p.bad), modifier = Modifier.padding(top = 8.dp))
 
         when (hold) {
             HoldState.LISTENING -> Banner("⏸ HOLD FOR ME: listening for a person… (you're muted)", p.surface2) { CallManager.stopHoldForMe() }
@@ -142,7 +152,8 @@ private fun InCallScreen(ui: CallUi) {
             HoldState.OFF -> {}
         }
 
-        Column(Modifier.weight(1f).fillMaxWidth().padding(vertical = 12.dp).verticalScroll(rememberScrollState())) {
+        if (!hasContent) Spacer(Modifier.weight(1f))
+        else Column(Modifier.weight(1f).fillMaxWidth().padding(vertical = 12.dp).verticalScroll(rememberScrollState())) {
             when (panel) {
                 Panel.KEYPAD -> InCallKeypad()
                 Panel.NOTES -> NotesPanel()
@@ -152,21 +163,24 @@ private fun InCallScreen(ui: CallUi) {
                     LaunchedEffect(ui.number) { smart = app.bitcall.ai.BitAi.smartDecline(context, ui.name, null) }
                     smart?.let { r ->
                         PixelButton(p.accent, Modifier.fillMaxWidth(), onClick = { CallManager.declineWithText(r) }) {
-                            Text("✨ $r", style = px(9, onColor(p.accent)), modifier = Modifier.padding(14.dp))
+                            Text("✨ $r", style = px(11, onColor(p.accent)), modifier = Modifier.padding(16.dp))
                         }
                     }
                     s.quickReplies.forEach { r ->
                         PixelButton(p.surface2, Modifier.fillMaxWidth(), onClick = { CallManager.declineWithText(r) }) {
-                            Text(r, style = px(9, p.text), modifier = Modifier.padding(14.dp))
+                            Text(r, style = px(11, p.text), modifier = Modifier.padding(16.dp))
                         }
                     }
                 }
-                Panel.NONE -> {}
+                Panel.NONE -> if (showTranscript) Card(Modifier.fillMaxWidth()) {
+                    Text("📝 LIVE TRANSCRIPT", style = px(9, p.accent))
+                    Text(transcript + if (partial.isNotBlank()) "\n$partial…" else "", style = px(10, p.text), modifier = Modifier.padding(top = 8.dp))
+                }
             }
         }
 
         if (ringing) {
-            Row(Modifier.fillMaxWidth().padding(bottom = 16.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
+            Row(Modifier.fillMaxWidth().padding(bottom = 20.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
                 RoundAction(p.bad, Icons.Filled.CallEnd, "DECLINE") { CallManager.hangup() }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     PixelChip("💬 REPLY", panel == Panel.REPLY) { panel = if (panel == Panel.REPLY) Panel.NONE else Panel.REPLY }
@@ -195,15 +209,20 @@ private fun InCallScreen(ui: CallUi) {
                 })
                 if (s.magicCue) add(Triple("✨ MAGIC CUE", panel == Panel.CUE) { panel = if (panel == Panel.CUE) Panel.NONE else Panel.CUE })
             }
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                grid.chunked(4).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // 3 big buttons per row: icon on top, label below.
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                grid.chunked(3).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         row.forEach { (label, on, action) ->
-                            PixelButton(if (on) p.accent else p.surface2, Modifier.weight(1f).heightIn(min = 56.dp), onClick = action) {
-                                Text(label, style = px(6, if (on) onColor(p.accent) else p.text), textAlign = TextAlign.Center, modifier = Modifier.padding(4.dp))
+                            val fg = if (on) onColor(p.accent) else p.text
+                            PixelButton(if (on) p.accent else p.surface2, Modifier.weight(1f).height(76.dp), onClick = action) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(label.substringBefore(' '), fontSize = 22.sp, color = fg)
+                                    Text(label.substringAfter(' '), style = px(9, fg), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
+                                }
                             }
                         }
-                        repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                        repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
             }
@@ -240,10 +259,10 @@ private fun Banner(text: String, color: Color, onClick: () -> Unit) {
 @Composable
 private fun RoundAction(color: Color, icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        PixelButton(color, Modifier.size(width = 96.dp, height = 64.dp), onClick = onClick) {
-            Icon(icon, label, tint = onColor(color), modifier = Modifier.size(30.dp))
+        PixelButton(color, Modifier.size(width = 140.dp, height = 76.dp), onClick = onClick) {
+            Icon(icon, label, tint = onColor(color), modifier = Modifier.size(36.dp))
         }
-        Text(label, style = px(7, LocalPalette.current.dim), modifier = Modifier.padding(top = 4.dp))
+        Text(label, style = px(9, LocalPalette.current.dim), modifier = Modifier.padding(top = 6.dp))
     }
 }
 
@@ -300,22 +319,22 @@ private fun CuePanel(number: String) {
 
 /** Avatar with expanding pixel rings while a call is ringing in or out. */
 @Composable
-private fun RingingAvatar(ui: CallUi, active: Boolean) {
+private fun RingingAvatar(ui: CallUi, active: Boolean, size: androidx.compose.ui.unit.Dp) {
     val p = LocalPalette.current
     val t = rememberInfiniteTransition(label = "ring")
     val pulse by t.animateFloat(0f, 1f, infiniteRepeatable(tween(1400, easing = LinearEasing)), label = "pulse")
     val ringColor = if (ui.enemy) p.bad else p.accent
-    Box(Modifier.size(150.dp), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(size * 1.45f), contentAlignment = Alignment.Center) {
         if (active) {
             listOf(0f, 0.5f).forEach { offset ->
                 val f = (pulse + offset) % 1f
                 Box(
-                    Modifier.size(96.dp + 54.dp * f).alpha(1f - f)
+                    Modifier.size(size + size * 0.45f * f).alpha(1f - f)
                         .border(4.dp, ringColor, RoundedCornerShape(18.dp)),
                 )
             }
         }
-        PixelAvatar(ui.name ?: ui.number, ui.photoUri, 96.dp, ui.enemy)
+        PixelAvatar(ui.name ?: ui.number, ui.photoUri, size, ui.enemy)
     }
 }
 
