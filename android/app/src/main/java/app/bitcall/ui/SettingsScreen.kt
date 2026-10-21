@@ -1,5 +1,6 @@
 package app.bitcall.ui
 
+import android.app.NotificationManager
 import android.app.TimePickerDialog
 import android.content.Intent
 import android.telecom.TelecomManager
@@ -30,6 +31,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -40,6 +42,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.unit.dp
 import app.bitcall.data.BitSettings
 import app.bitcall.data.Blocklist
@@ -119,6 +124,31 @@ private fun Toggle(label: String, sub: String?, on: Boolean, set: (BitSettings, 
     }
 }
 
+/** Do Not Disturb access lets bitcall pause phone DND while a ★ favorite rings, so the call screen shows too. */
+@Composable
+private fun DndAccessRow() {
+    val p = LocalPalette.current
+    val context = LocalContext.current
+    val nm = context.getSystemService(NotificationManager::class.java)
+    var granted by remember { mutableStateOf(nm.isNotificationPolicyAccessGranted) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        val obs = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME) granted = nm.isNotificationPolicyAccessGranted }
+        lifecycle.addObserver(obs)
+        onDispose { lifecycle.removeObserver(obs) }
+    }
+    if (granted) {
+        Info("✓ Do Not Disturb access is on. Favorites ring and show the call screen during phone DND.")
+    } else {
+        Info("Give bitcall Do Not Disturb access so favorites show the full call screen during phone DND. Without it they still ring, using the alarm sound channel.")
+        Row(Modifier.padding(bottom = 8.dp)) {
+            PixelChip("☾ ALLOW DND ACCESS", false) {
+                context.startActivity(Intent(android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
+            }
+        }
+    }
+}
+
 @Composable
 private fun Info(text: String) {
     val p = LocalPalette.current
@@ -183,8 +213,9 @@ private fun SectionBody(section: Section, onChanged: () -> Unit) {
                     TimePickerDialog(context, { _, h, m -> Settings.update { it.copy(dndEnd = h * 60 + m) } }, s.dndEnd / 60, s.dndEnd % 60, false).show()
                 }
             }
-            Toggle("Let ★ favorites through", null, s.dndAllowFavorites) { b, v -> b.copy(dndAllowFavorites = v) }
-            Info("Silenced calls still show in Recents. Bitcall also respects your phone's own Do Not Disturb.")
+            Toggle("Let ★ favorites through", "Also rings through your phone's own Do Not Disturb", s.dndAllowFavorites) { b, v -> b.copy(dndAllowFavorites = v) }
+            if (s.dndAllowFavorites) DndAccessRow()
+            Info("Silenced calls still show in Recents. Everyone except ★ favorites follows your phone's own Do Not Disturb.")
         }
         Section.BLOCKED -> {
             var refresh by remember { mutableIntStateOf(0) }
