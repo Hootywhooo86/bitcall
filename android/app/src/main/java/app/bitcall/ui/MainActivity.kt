@@ -52,6 +52,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.bitcall.data.CallEntry
 import app.bitcall.data.CallLogRepo
 import app.bitcall.data.Contact
@@ -76,9 +77,17 @@ class MainActivity : ComponentActivity() {
     }.toTypedArray()
 
     private val askPermissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
+    /** Set when Android refuses the dialer role (sideloaded apps hit "restricted settings" on Android 13+). */
+    val roleDenied = MutableStateFlow(false)
+
     private val askRole = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        roleDenied.value = !isDefaultDialer()
         if (permissions.any { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }) askPermissions.launch(permissions)
     }
+
+    fun openAppInfo() = startActivity(
+        Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", packageName, null)),
+    )
 
     fun isDefaultDialer() = getSystemService(RoleManager::class.java).isRoleHeld(RoleManager.ROLE_DIALER)
 
@@ -150,7 +159,20 @@ fun Home(activity: MainActivity, incomingDial: MutableStateFlow<String?>) {
             return@Column
         }
         TopBar(contacts.filter { it.starred }, onSettings = { settings = true }) { Phone.call(context, it) }
-        if (!isDefault) {
+        val denied by activity.roleDenied.collectAsStateWithLifecycle()
+        if (!isDefault && denied) {
+            Card(Modifier.padding(horizontal = 12.dp).fillMaxWidth()) {
+                Text("⚠ ANDROID BLOCKED IT. 30-SECOND FIX:", style = px(9, p.bad))
+                Text(
+                    "1. Tap OPEN APP INFO\n2. Tap ⋮ (top-right corner)\n3. Tap \"Allow restricted settings\" and confirm\n4. Come back and tap TRY AGAIN\n\nAndroid does this for apps installed from an APK instead of an app store.",
+                    style = px(7, p.text), modifier = Modifier.padding(vertical = 8.dp),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PixelChip("OPEN APP INFO", true) { activity.openAppInfo() }
+                    PixelChip("TRY AGAIN", false) { activity.requestDefaultDialer() }
+                }
+            }
+        } else if (!isDefault) {
             Card(Modifier.padding(horizontal = 12.dp).fillMaxWidth().clickable { activity.requestDefaultDialer() }) {
                 Text("▶ TAP TO MAKE BITCALL YOUR PHONE APP", style = px(9, p.accent))
                 Text("Needed to place, answer, screen and record calls.", style = px(7, p.dim), modifier = Modifier.padding(top = 6.dp))
