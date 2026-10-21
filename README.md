@@ -21,6 +21,25 @@ Bitcall is Daniel's 128bit-family take on the phone app: calls, contacts, and di
 2. iOS / Android / both? (Native dialer replacement is Android-only; iOS would be a companion.)
 3. Does it need real telephony (Twilio/similar) or is it a UI + contacts + notes layer over the system dialer?
 
+## The Android app (`android/`)
+
+Bitcall is a full **default phone app for Android 11+** (Kotlin + Jetpack Compose). See [ROADMAP.md](ROADMAP.md) for
+the feature list and what's next.
+
+**Install a pre-release:** grab the latest APK from the repo's GitHub Releases (marked *Pre-release*), install it,
+open Bitcall and accept **Set as default phone app**.
+
+**Build locally:**
+
+```sh
+cd android
+./gradlew testDebugUnitTest assembleRelease   # APK → app/build/outputs/apk/release/
+```
+
+Code map: `data/` (contacts, call log, settings, notes, voicemail) · `telecom/` (InCallService, screening, ringer,
+recorder, notifications) · `assist/` (Hold for Me, Magic Cue, transcriber, 8-bit synth) · `ai/` (opt-in on-device AI)
+· `ui/` (Compose screens).
+
 ## Architecture (128bit family standard)
 
 - **One 128bit account** across all apps from day one.
@@ -38,5 +57,7 @@ Bitcall is Daniel's 128bit-family take on the phone app: calls, contacts, and di
 
 - [x] Repo created, landing page live
 - [ ] Formspree ID in `index.html`
-- [ ] Product direction locked (Daniel)
-- [ ] App scaffold (per platform call)
+- [x] Product direction locked: Android default dialer, Pixel-style, Call Assist, opt-in local AI
+- [x] App scaffold + 0.1 pre-release (Android 11+)
+- [ ] llama.cpp / whisper.cpp native engines
+- [ ] Release signing key in repo secrets

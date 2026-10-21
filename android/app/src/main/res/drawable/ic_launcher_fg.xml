@@ -1,0 +1,7 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="36" android:viewportHeight="36">
+    <!-- Pixel handset, offset into the adaptive-icon safe zone -->
+    <path android:fillColor="#FF00E676"
+        android:pathData="M12,10h4v4h-2v2h2v3h2v2h2v-2h2v2h4v4h-4v-1h-3v-1h-2v-1h-1v-1h-2v-2h-1v-3h-1z" />
+    <path android:fillColor="#FFB388FF" android:pathData="M21,10h2v2h-2zM24,13h2v2h-2zM21,13h2v2h-2z" />
+</vector>
