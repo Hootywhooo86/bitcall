@@ -77,19 +77,48 @@ object CallManager {
         val number = call.details.handle?.schemeSpecificPart.orEmpty()
         val verificationFailed = call.details.callerNumberVerificationStatus == Connection.VERIFICATION_STATUS_FAILED
         val incoming = call.details.callDirection == Call.Details.DIRECTION_INCOMING
+        val contact = ContactsRepo.lookup(app, number)
+        if (incoming) {
+            CallTrace.begin(app, contact?.name ?: number.ifEmpty { "private number" })
+            CallTrace.note(when {
+                contact == null -> "not in your contacts"
+                contact.starred -> "contact \"${contact.name}\" is a ★ favorite"
+                else -> "contact \"${contact.name}\" is NOT starred"
+            })
+            val ex = call.details.extras
+            if (ex?.getBoolean(Call.EXTRA_SILENT_RINGING_REQUESTED) == true) CallTrace.note("Android asked for silent ringing (call screening)")
+            if (android.os.Build.VERSION.SDK_INT >= 31 && ex?.getBoolean(Call.EXTRA_IS_SUPPRESSED_BY_DO_NOT_DISTURB) == true) {
+                CallTrace.note("Android's own DND would block this call; bitcall decides instead")
+            }
+        }
         decisions[call] = if (incoming) CallPolicy.decide(app, number, verificationFailed)
         else CallPolicy.Decision(false, false, false, null)
-        val contact = ContactsRepo.lookup(app, number)
         sessions[call] = CallSession(number, contact?.name, contact?.photoUri, contact?.starred == true, System.currentTimeMillis())
         call.registerCallback(callback)
         refresh()
-        if (call.state == Call.STATE_RINGING) Ringer.start(app, decisions[call]!!, contact?.starred == true)
+        if (call.state == Call.STATE_RINGING) startRinging(call)
+        else if (incoming) CallTrace.note("call arrived in state ${call.state}; will ring when it starts ringing")
+    }
+
+    private val ringing = HashSet<Call>()
+
+    private fun startRinging(call: Call) {
+        if (!ringing.add(call)) return
+        Ringer.start(app, decisions[call] ?: return, sessions[call]?.starred == true)
+        if (sessions[call]?.starred == true && Settings.now.dndAllowFavorites) {
+            val nm = app.getSystemService(android.app.NotificationManager::class.java)
+            CallTrace.note(
+                "call screen: shows over DND=${nm.getNotificationChannel(CallNotifications.CH_FAVORITE)?.canBypassDnd() == true} · " +
+                    "DND access=${nm.isNotificationPolicyAccessGranted}",
+            )
+        }
     }
 
     fun remove(call: Call) {
         call.unregisterCallback(callback)
         sessions.remove(call)?.let(::finish)
         decisions.remove(call)
+        ringing.remove(call)
         refresh()
         if (primary == null) {
             Ringer.stop()
@@ -100,7 +129,16 @@ object CallManager {
     }
 
     private fun onChanged(call: Call) {
-        if (call.state != Call.STATE_RINGING) Ringer.stop()
+        if (call.state == Call.STATE_RINGING) startRinging(call)
+        else if (call in ringing) {
+            ringing.remove(call)
+            Ringer.stop()
+            CallTrace.note(when (call.state) {
+                Call.STATE_ACTIVE -> "answered"
+                Call.STATE_DISCONNECTED -> "ended before it was answered"
+                else -> "stopped ringing (state ${call.state})"
+            })
+        }
         if (call.state == Call.STATE_ACTIVE) {
             if (Settings.now.autoRecord && !recording.value) RecorderService.start(app)
             if (Settings.now.liveTranscript) ensureTranscriber()

@@ -31,5 +31,8 @@ class BitcallInCallService : InCallService() {
     @Deprecated("Deprecated in Java")
     override fun onCallAudioStateChanged(audioState: CallAudioState) = CallManager.onAudio(audioState)
 
-    override fun onSilenceRinger() = Ringer.stop()
+    override fun onSilenceRinger() {
+        CallTrace.note("Android asked bitcall to silence the ringer (volume key or system)")
+        Ringer.stop()
+    }
 }

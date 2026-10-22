@@ -106,7 +106,11 @@ fun SettingsScreen(onBack: () -> Unit, onChanged: () -> Unit, initial: Section? 
                         }
                     }
                 }
-                item { Text("bitcall 0.1 · 128bit family", style = px(7, p.dim), modifier = Modifier.padding(vertical = 24.dp)) }
+                item {
+                    val ctx = LocalContext.current
+                    val version = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "?" }
+                    Text("bitcall $version · 128bit family", style = px(7, p.dim), modifier = Modifier.padding(vertical = 24.dp))
+                }
             }
         }
     }
@@ -213,9 +217,10 @@ private fun SectionBody(section: Section, onChanged: () -> Unit) {
                     TimePickerDialog(context, { _, h, m -> Settings.update { it.copy(dndEnd = h * 60 + m) } }, s.dndEnd / 60, s.dndEnd % 60, false).show()
                 }
             }
-            Toggle("Let ★ favorites through", "Also rings through your phone's own Do Not Disturb", s.dndAllowFavorites) { b, v -> b.copy(dndAllowFavorites = v) }
+            Toggle("Let ★ favorites through", "Rings through your phone's own Do Not Disturb, on the alarm sound, even if the ringer is on vibrate", s.dndAllowFavorites) { b, v -> b.copy(dndAllowFavorites = v) }
             if (s.dndAllowFavorites) DndAccessRow()
             Info("Silenced calls still show in Recents. Everyone except ★ favorites follows your phone's own Do Not Disturb.")
+            RingThroughCheck()
         }
         Section.BLOCKED -> {
             var refresh by remember { mutableIntStateOf(0) }

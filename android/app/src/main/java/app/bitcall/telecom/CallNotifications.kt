@@ -47,7 +47,7 @@ object CallNotifications {
 
     /** Silent like CH_INCOMING (bitcall rings itself) but may bypass phone DND. Re-sent each time so
      *  the bypass turns on as soon as DND access is granted. */
-    private fun favoriteChannel(context: Context): String {
+    fun favoriteChannel(context: Context): String {
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(
             NotificationChannel(CH_FAVORITE, "Incoming calls from ★ favorites", NotificationManager.IMPORTANCE_HIGH).apply {
                 setSound(null, null); enableVibration(false); setBypassDnd(true)

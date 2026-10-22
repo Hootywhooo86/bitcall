@@ -3,7 +3,11 @@ package app.bitcall.ui
 import android.accounts.AccountManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -52,7 +56,7 @@ fun ContactsScreen(contacts: List<Contact>, onChanged: () -> Unit, onOpen: (Cont
     }
     val favorites = shown.filter { it.starred }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
                 query, { query = it }, Modifier.weight(1f),
@@ -63,11 +67,16 @@ fun ContactsScreen(contacts: List<Contact>, onChanged: () -> Unit, onOpen: (Cont
                 Text("+ ADD", style = px(9, onColor(p.accent)), modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp))
             }
         }
-        LazyColumn(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize().padding(top = 8.dp)) {
             if (favorites.isNotEmpty()) {
-                item { SectionTitle("★ Favorites") }
-                items(favorites, key = { "f${it.id}" }) { c -> ContactRow(c, { onOpen(c) }) { star(context, scope, c, onChanged) } }
-                item { SectionTitle("All contacts") }
+                item { SectionTitle("★ Favorites · ${favorites.size}") }
+                // Favorites sit on tone cards with even gaps, so they read as their own group.
+                items(favorites, key = { "f${it.id}" }) { c ->
+                    Box(Modifier.padding(vertical = 4.dp).clip(RoundedCornerShape(14.dp)).background(p.surface).padding(horizontal = 12.dp)) {
+                        ContactRow(c, { onOpen(c) }) { star(context, scope, c, onChanged) }
+                    }
+                }
+                item { SectionTitle("All contacts", Modifier.padding(top = 12.dp)) }
             }
             items(shown, key = { it.id }) { c -> ContactRow(c, { onOpen(c) }) { star(context, scope, c, onChanged) } }
             if (contacts.isEmpty()) item {
