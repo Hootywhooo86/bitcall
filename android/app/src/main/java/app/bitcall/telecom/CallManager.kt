@@ -81,10 +81,6 @@ object CallManager {
         else CallPolicy.Decision(false, false, false, null)
         val contact = ContactsRepo.lookup(app, number)
         sessions[call] = CallSession(number, contact?.name, contact?.photoUri, contact?.starred == true, System.currentTimeMillis())
-        // Lift phone DND for a ★ favorite before the incoming-call screen posts, or DND hides it.
-        if (call.state == Call.STATE_RINGING && decisions[call]?.let { !it.silence && !it.reject } == true) {
-            Ringer.liftDndForFavorite(app, contact?.starred == true)
-        }
         call.registerCallback(callback)
         refresh()
         if (call.state == Call.STATE_RINGING) Ringer.start(app, decisions[call]!!, contact?.starred == true)

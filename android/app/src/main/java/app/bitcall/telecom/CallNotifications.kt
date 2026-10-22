@@ -4,16 +4,20 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.app.Person
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.telecom.Call
 import app.bitcall.R
 import app.bitcall.data.Phone
+import app.bitcall.data.Settings
 import app.bitcall.ui.InCallActivity
 
 object CallNotifications {
     const val CH_INCOMING = "incoming"
+    // ★ favorites: allowed to show over phone Do Not Disturb (Android honours this once bitcall has DND access).
+    const val CH_FAVORITE = "incoming_favorite"
     const val CH_ONGOING = "ongoing"
     const val CH_ASSIST = "assist"
     const val CH_RECORDER = "recorder"
@@ -41,11 +45,29 @@ object CallNotifications {
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
+    /** Silent like CH_INCOMING (bitcall rings itself) but may bypass phone DND. Re-sent each time so
+     *  the bypass turns on as soon as DND access is granted. */
+    private fun favoriteChannel(context: Context): String {
+        context.getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(CH_FAVORITE, "Incoming calls from ★ favorites", NotificationManager.IMPORTANCE_HIGH).apply {
+                setSound(null, null); enableVibration(false); setBypassDnd(true)
+            }
+        )
+        return CH_FAVORITE
+    }
+
     fun show(context: Context, ui: CallUi) {
         val ringing = ui.state == Call.STATE_RINGING
         val who = (if (ui.enemy) "👾 " else "") + (ui.name ?: Phone.pretty(ui.number))
-        val b = Notification.Builder(context, if (ringing) CH_INCOMING else CH_ONGOING)
+        val channel = when {
+            !ringing -> CH_ONGOING
+            ui.starred && Settings.now.dndAllowFavorites -> favoriteChannel(context)
+            else -> CH_INCOMING
+        }
+        val b = Notification.Builder(context, channel)
             .setSmallIcon(R.drawable.ic_stat_call)
+            // Who's calling, so the phone's own DND rules ("starred contacts") can match the call too.
+            .addPerson(Person.Builder().setName(ui.name ?: ui.number).setUri("tel:" + ui.number).build())
             .setContentTitle(who)
             .setContentText(if (ringing) (if (ui.enemy) "Possible spam caller" else "Incoming call") else "Ongoing call")
             .setCategory(Notification.CATEGORY_CALL)

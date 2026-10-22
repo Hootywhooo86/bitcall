@@ -138,9 +138,9 @@ private fun DndAccessRow() {
         onDispose { lifecycle.removeObserver(obs) }
     }
     if (granted) {
-        Info("✓ Do Not Disturb access is on. Favorites ring and show the call screen during phone DND.")
+        Info("✓ Do Not Disturb access is on. During phone DND, favorites ring (on the alarm sound) and pop up the call screen. Your DND stays on.")
     } else {
-        Info("Give bitcall Do Not Disturb access so favorites show the full call screen during phone DND. Without it they still ring, using the alarm sound channel.")
+        Info("Favorites already ring during phone DND, on the alarm sound. Give bitcall Do Not Disturb access so the call screen pops up too. Your DND stays on.")
         Row(Modifier.padding(bottom = 8.dp)) {
             PixelChip("☾ ALLOW DND ACCESS", false) {
                 context.startActivity(Intent(android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
