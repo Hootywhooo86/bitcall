@@ -27,6 +27,7 @@ object Phone {
         val uri = if (number == "voicemail") Uri.fromParts("voicemail", "", null)
         else Uri.fromParts("tel", number, null)
         if (context.checkSelfPermission(Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) return
+        DialPad.callPlacedAt = System.currentTimeMillis()
         context.getSystemService(TelecomManager::class.java).placeCall(uri, Bundle())
     }
 

@@ -271,13 +271,13 @@ private fun InCallKeypad() {
     val s = LocalBitSettings.current
     var typed by remember { mutableStateOf("") }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(typed, style = px(14, p.accent), modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), textAlign = TextAlign.Center)
+        Text(typed, style = px(big(14), p.digits), modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), textAlign = TextAlign.Center)
         KEYS.chunked(3).forEachIndexed { row, keys ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 keys.forEachIndexed { col, (d, _) ->
                     val color = p.key(row * 3 + col, s)
                     PixelButton(color, Modifier.weight(1f).aspectRatio(2.2f), onClick = { typed += d; CallManager.dtmf(d.single()) }) {
-                        Text(d, style = px(14, onColor(color)))
+                        Text(d, style = px(big(15), onColor(color)))
                     }
                 }
             }

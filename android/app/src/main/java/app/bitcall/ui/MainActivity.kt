@@ -62,6 +62,7 @@ import app.bitcall.data.Contact
 import app.bitcall.data.ContactsRepo
 import app.bitcall.data.DialPad
 import app.bitcall.data.Phone
+import app.bitcall.telecom.CallManager
 import kotlinx.coroutines.flow.MutableStateFlow
 
 class MainActivity : ComponentActivity() {
@@ -109,6 +110,13 @@ class MainActivity : ComponentActivity() {
         if (!isDefaultDialer()) requestDefaultDialer()
         else if (permissions.any { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }) askPermissions.launch(permissions)
         setContent { BitTheme { Home(this, incomingDial) } }
+    }
+
+    /** Leaving Bitcall (home, back, swiping it away) clears the keypad; going to a call keeps it. */
+    override fun onStop() {
+        super.onStop()
+        if (isChangingConfigurations) return
+        DialPad.clearUnlessCalling(CallManager.calls.value.any { it.state != android.telecom.Call.STATE_DISCONNECTED })
     }
 
     override fun onNewIntent(intent: Intent) {

@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -83,8 +84,8 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
                 ) {
                     PixelAvatar(c.name, c.photoUri, avatarSize(48.dp), enemy = Phone.isSpam(c.primary))
                     Column(Modifier.padding(start = 14.dp).weight(1f)) {
-                        Text(c.name, style = px(13, p.text), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(Phone.pretty(c.primary), style = px(10, p.dim), modifier = Modifier.padding(top = 6.dp))
+                        Text(c.name, style = px(big(11), p.text), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(Phone.pretty(c.primary), style = px(big(8), p.dim), modifier = Modifier.padding(top = 6.dp))
                     }
                     if (c.starred) Text("★", style = px(16, p.accent))
                 }
@@ -93,15 +94,18 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
 
         // Number display: tap to clear, like the landing page. Long-press copies the number, or
         // pastes one from the clipboard when nothing is typed yet.
-        Row(Modifier.fillMaxWidth().height(64.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().height(80.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { adding = true }, enabled = digits.isNotEmpty()) {
                 Icon(Icons.Filled.PersonAdd, "Add contact", tint = if (digits.isNotEmpty()) p.dim else p.bg)
             }
+            // Pixel font glyphs are 1em wide, so the number shrinks only as far as it must to fit.
+            BoxWithConstraints(Modifier.weight(1f)) {
+            val fit = (maxWidth.value / digits.length.coerceAtLeast(1) / s.textScale).toInt()
             Text(
                 digits.ifEmpty { "ENTER A NUMBER" },
-                style = if (digits.isEmpty()) px(9, p.dim) else px(if (digits.length > 12) 14 else 20, p.digits, glow = p.digits),
+                style = if (digits.isEmpty()) px(9, p.dim) else px(minOf(big(24), fit), p.digits, glow = p.digits),
                 textAlign = TextAlign.Center, maxLines = 1,
-                modifier = Modifier.weight(1f).combinedClickable(
+                modifier = Modifier.fillMaxWidth().combinedClickable(
                     onClick = { setDigits("") },
                     onLongClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -114,6 +118,7 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
                     },
                 ),
             )
+            }
             IconButton(onClick = { setDigits(digits.dropLast(1)) }, enabled = digits.isNotEmpty()) {
                 Icon(Icons.AutoMirrored.Filled.Backspace, "Delete", tint = if (digits.isNotEmpty()) p.dim else p.bg)
             }
@@ -128,7 +133,7 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
                         val digit = d.single()
                         PixelButton(
                             color,
-                            Modifier.weight(1f).aspectRatio(1.45f),
+                            Modifier.weight(1f).aspectRatio(1.35f),
                             onLongClick = {
                                 when {
                                     digit == '1' -> Phone.call(context, "voicemail")
@@ -146,11 +151,11 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
                             },
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(d, style = px(18, onColor(color)))
+                                Text(d, style = px(big(20), onColor(color)))
                                 val speed = s.speedDial[digit - '0']
                                 if (s.keyLetters || speed != null) Text(
                                     if (speed != null && digit in '2'..'9') "⚡" else sub,
-                                    style = px(6, onColor(color).copy(alpha = 0.7f)), modifier = Modifier.padding(top = 4.dp),
+                                    style = px(big(6), onColor(color).copy(alpha = 0.75f)), modifier = Modifier.padding(top = 4.dp),
                                 )
                             }
                         }

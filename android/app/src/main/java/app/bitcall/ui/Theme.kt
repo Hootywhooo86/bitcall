@@ -149,6 +149,9 @@ fun bitShape(radius: Dp): Shape = when (cornerState.value) {
     else -> PixelCornerShape(radius)
 }
 
+/** Text that should grow with CARD SIZE too: keypad digits, the typed number, caller names. */
+fun big(size: Int): Int = kotlin.math.round(size * cardScaleState.floatValue).toInt()
+
 /** Avatar and card sizes follow the CARD SIZE setting. */
 fun avatarSize(base: Dp): Dp = base * cardScaleState.floatValue
 

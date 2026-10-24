@@ -66,11 +66,6 @@ object Settings {
     fun init(context: Context) {
         prefs = context.getSharedPreferences("bitcall", Context.MODE_PRIVATE)
         _state.value = load()
-        DialPad.digits.value = prefs.getString("dialDigits", "")!!
-    }
-
-    internal fun saveDigits(digits: String) {
-        if (::prefs.isInitialized) prefs.edit().putString("dialDigits", digits).apply()
     }
 
     fun update(block: (BitSettings) -> BitSettings) {
@@ -170,14 +165,21 @@ object Settings {
 }
 
 /**
- * What's typed on the keypad. Lives outside the screen (and on disk) so the number is still there
- * after a call ends, even if Android rebuilt the dialer while the call screen was up.
+ * What's typed on the keypad. Lives outside the screen so the number is still there after a call
+ * ends, even if Android rebuilt the dialer while the call screen was up. It is cleared as soon as
+ * you leave Bitcall without a call going (see MainActivity.onStop), and never written to disk.
  */
 object DialPad {
     val digits = MutableStateFlow("")
 
+    /** When Bitcall last placed a call; the call screen can take a moment to show up. */
+    @Volatile var callPlacedAt = 0L
+
     fun set(value: String) {
         digits.value = value
-        Settings.saveDigits(value)
+    }
+
+    fun clearUnlessCalling(callActive: Boolean, now: Long = System.currentTimeMillis()) {
+        if (!callActive && now - callPlacedAt > 10_000) digits.value = ""
     }
 }

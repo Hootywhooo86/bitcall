@@ -1,6 +1,7 @@
 package app.bitcall
 
 import androidx.compose.ui.graphics.Color
+import app.bitcall.data.DialPad
 import app.bitcall.ui.ColorSlot
 import app.bitcall.ui.LOGO
 import app.bitcall.ui.PALETTES
@@ -45,5 +46,17 @@ class ThemeTest {
         // The handset silhouette is symmetric across the top-right to bottom-left diagonal.
         val solid = { x: Int, y: Int -> LOGO[y][x] != '.' }
         for (y in 0 until 32) for (x in 0 until 32) assertEquals("($x,$y)", solid(x, y), solid(31 - y, 31 - x))
+    }
+
+    @Test fun keypadClearsWhenLeavingWithoutACall() {
+        DialPad.callPlacedAt = 0L
+        DialPad.set("7805551234")
+        DialPad.clearUnlessCalling(callActive = true)
+        assertEquals("7805551234", DialPad.digits.value)   // still on a call: keep it
+        DialPad.callPlacedAt = 1_000_000L
+        DialPad.clearUnlessCalling(callActive = false, now = 1_005_000L)
+        assertEquals("7805551234", DialPad.digits.value)   // call just placed, call screen not up yet
+        DialPad.clearUnlessCalling(callActive = false, now = 1_020_000L)
+        assertEquals("", DialPad.digits.value)             // left the app: cleared
     }
 }
