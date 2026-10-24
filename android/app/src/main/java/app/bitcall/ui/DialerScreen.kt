@@ -103,7 +103,7 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
             val fit = (maxWidth.value / digits.length.coerceAtLeast(1) / s.textScale).toInt()
             Text(
                 digits.ifEmpty { "ENTER A NUMBER" },
-                style = if (digits.isEmpty()) px(9, p.dim) else px(minOf(big(24), fit), p.digits, glow = p.digits),
+                style = if (digits.isEmpty()) px(9, p.dim) else px(minOf(big(19), fit), p.digits, glow = p.digits),
                 textAlign = TextAlign.Center, maxLines = 1,
                 modifier = Modifier.fillMaxWidth().combinedClickable(
                     onClick = { setDigits("") },
@@ -152,7 +152,7 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
                             },
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(d, style = px(big(20), onColor(color)))
+                                Text(d, style = px(big(16), onColor(color)))
                                 val speed = s.speedDial[digit - '0']
                                 if (s.keyLetters || speed != null) Text(
                                     if (speed != null && digit in '2'..'9') "⚡" else sub,
