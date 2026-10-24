@@ -74,7 +74,7 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
         else contacts.filter { c -> c.numbers.any { Phone.t9Matches(digits, c.name, it) } }.take(4)
     }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.Bottom) {
             items(matches, key = { it.id }) { c ->
                 Row(
@@ -124,9 +124,10 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
             }
         }
 
-        Column(Modifier.widthIn(max = 360.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        // Keys run nearly edge to edge (capped only on tablets) so they're big, easy targets.
+        Column(Modifier.fillMaxWidth().widthIn(max = 560.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             KEYS.chunked(3).forEachIndexed { row, keys ->
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     keys.forEachIndexed { col, (d, sub) ->
                         val index = row * 3 + col
                         val color = p.key(index, s)
