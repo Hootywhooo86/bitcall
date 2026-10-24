@@ -10,11 +10,22 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.toRect
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
@@ -43,7 +54,49 @@ data class Palette(
     val good: Color,
     val bad: Color,
     val keys: List<Color>,
+    // Finer slots; they follow the palette unless the user overrides them.
+    val border: Color = surface2,
+    val digits: Color = accent,
+    val tabBar: Color = surface,
+    val tabActive: Color = accent,
+    val call: Color = good,
+    val hangup: Color = bad,
+    val logo: Color = good,
+    val waves: Color = accent,
 )
+
+/** Every colour the user can change, in the order the theme editor lists them. */
+enum class ColorSlot(val label: String, val get: (Palette) -> Color) {
+    BG("Background", { it.bg }),
+    SURFACE("Cards", { it.surface }),
+    SURFACE2("Buttons & chips", { it.surface2 }),
+    BORDER("Card borders", { it.border }),
+    TEXT("Text", { it.text }),
+    DIM("Small text", { it.dim }),
+    ACCENT("Accent", { it.accent }),
+    DIGITS("Typed number", { it.digits }),
+    CALL("Call button", { it.call }),
+    HANGUP("Hang-up button", { it.hangup }),
+    GOOD("Good / answered", { it.good }),
+    BAD("Missed / spam", { it.bad }),
+    TAB_BAR("Tab bar", { it.tabBar }),
+    TAB_ACTIVE("Selected tab", { it.tabActive }),
+    LOGO("Logo handset", { it.logo }),
+    WAVES("Logo waves", { it.waves }),
+}
+
+fun Palette.with(overrides: Map<String, Long>): Palette {
+    if (overrides.isEmpty()) return this
+    fun o(slot: ColorSlot, base: Color) = overrides[slot.name]?.let { Color(it) } ?: base
+    return copy(
+        bg = o(ColorSlot.BG, bg), surface = o(ColorSlot.SURFACE, surface), surface2 = o(ColorSlot.SURFACE2, surface2),
+        border = o(ColorSlot.BORDER, border), text = o(ColorSlot.TEXT, text), dim = o(ColorSlot.DIM, dim),
+        accent = o(ColorSlot.ACCENT, accent), digits = o(ColorSlot.DIGITS, digits), call = o(ColorSlot.CALL, call),
+        hangup = o(ColorSlot.HANGUP, hangup), good = o(ColorSlot.GOOD, good), bad = o(ColorSlot.BAD, bad),
+        tabBar = o(ColorSlot.TAB_BAR, tabBar), tabActive = o(ColorSlot.TAB_ACTIVE, tabActive),
+        logo = o(ColorSlot.LOGO, logo), waves = o(ColorSlot.WAVES, waves),
+    )
+}
 
 private fun c(hex: Long) = Color(0xFF000000 or hex)
 
@@ -79,15 +132,68 @@ fun Palette.key(index: Int, s: BitSettings): Color = s.keyColors[index]?.let { C
 fun onColor(bg: Color): Color =
     if (0.299 * bg.red + 0.587 * bg.green + 0.114 * bg.blue > 0.55) Color(0xFF0D0D1A) else Color.White
 
+// Read during composition, so screens redraw when the user changes text size or corners.
+private val textScaleState = mutableFloatStateOf(1f)
+private val cornerState = mutableStateOf("PIXEL")
+private val cardScaleState = mutableFloatStateOf(1.35f)
+
 fun px(size: Int, color: Color = Color.Unspecified, glow: Color? = null) = TextStyle(
-    fontFamily = PixelFont, fontSize = size.sp, lineHeight = (size * 1.6).sp, color = color,
+    fontFamily = PixelFont, fontSize = (size * textScaleState.floatValue).sp, lineHeight = (size * textScaleState.floatValue * 1.6).sp, color = color,
     shadow = glow?.let { Shadow(it, Offset.Zero, 14f) },
 )
+
+/** The app's corner style: stepped pixel corners by default, or round / square. */
+fun bitShape(radius: Dp): Shape = when (cornerState.value) {
+    "ROUND" -> RoundedCornerShape(radius)
+    "SQUARE" -> RectangleShape
+    else -> PixelCornerShape(radius)
+}
+
+/** Avatar and card sizes follow the CARD SIZE setting. */
+fun avatarSize(base: Dp): Dp = base * cardScaleState.floatValue
+
+fun cardScale(size: String) = when (size) {
+    "COMPACT" -> 0.85f
+    "NORMAL" -> 1f
+    "HUGE" -> 1.7f
+    else -> 1.35f
+}
+
+/**
+ * Corners cut as a staircase of square steps, like a sprite's edge. The step count scales with the
+ * radius so small chips get 2 steps and big cards 3.
+ */
+class PixelCornerShape(private val radius: Dp) : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
+        val r = with(density) { radius.toPx() }.coerceAtMost(minOf(size.width, size.height) / 2)
+        if (r < 1f) return Outline.Rectangle(size.toRect())
+        val steps = if (r >= 24f) 3 else 2
+        val st = (r / steps).let { kotlin.math.floor(it) }.coerceAtLeast(1f)
+        val w = size.width; val h = size.height
+        val path = Path().apply {
+            // Top edge, then each corner as `steps` square stairs, clockwise from the top-left.
+            moveTo(st * steps, 0f)
+            lineTo(w - st * steps, 0f)
+            for (i in 1..steps) { lineTo(w - st * (steps - i + 1), st * (i - 1)); lineTo(w - st * (steps - i + 1), st * i); lineTo(w - st * (steps - i), st * i) }
+            lineTo(w, h - st * steps)
+            for (i in 1..steps) { lineTo(w - st * (i - 1), h - st * (steps - i + 1)); lineTo(w - st * i, h - st * (steps - i + 1)); lineTo(w - st * i, h - st * (steps - i)) }
+            lineTo(st * steps, h)
+            for (i in 1..steps) { lineTo(st * (steps - i + 1), h - st * (i - 1)); lineTo(st * (steps - i + 1), h - st * i); lineTo(st * (steps - i), h - st * i) }
+            lineTo(0f, st * steps)
+            for (i in 1..steps) { lineTo(st * (i - 1), st * (steps - i + 1)); lineTo(st * i, st * (steps - i + 1)); lineTo(st * i, st * (steps - i)) }
+            close()
+        }
+        return Outline.Generic(path)
+    }
+}
 
 @Composable
 fun BitTheme(content: @Composable () -> Unit) {
     val s by Settings.state.collectAsStateWithLifecycle()
-    val p = paletteOf(s.palette)
+    val p = paletteOf(s.palette).with(s.colorOverrides)
+    textScaleState.floatValue = s.textScale
+    cornerState.value = s.corners
+    cardScaleState.floatValue = cardScale(s.cardSize)
     val scheme = if (p.dark) darkColorScheme(
         primary = p.accent, onPrimary = onColor(p.accent), background = p.bg, onBackground = p.text,
         surface = p.surface, onSurface = p.text, surfaceVariant = p.surface2, onSurfaceVariant = p.dim,

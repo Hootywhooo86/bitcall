@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -54,7 +53,7 @@ fun PixelButton(
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     val depth = 5.dp
-    val shape = RoundedCornerShape(8.dp)
+    val shape = bitShape(8.dp)
     Box(modifier.padding(bottom = depth)) {
         Box(Modifier.matchParentSize().offset(y = depth).clip(shape).background(darken(color)))
         Box(
@@ -85,34 +84,39 @@ fun EnemyBadge(modifier: Modifier = Modifier) {
     Text(
         "👾 ENEMY",
         style = px(8, Color.White),
-        modifier = modifier.clip(RoundedCornerShape(4.dp)).background(p.bad).padding(horizontal = 6.dp, vertical = 4.dp),
+        modifier = modifier.clip(bitShape(4.dp)).background(p.bad).padding(horizontal = 6.dp, vertical = 4.dp),
     )
 }
 
 private val spriteCache = LruCache<String, ImageBitmap>(64)
 
 /**
- * Contact photo crushed down to a 16x16 sprite and drawn without smoothing; contacts without a
- * photo get a symmetric 8x8 invader generated from their name. Enemies always get the red invader.
+ * Contact photo center-cropped and crushed down to a square sprite (PIXEL DETAIL wide, 32 by
+ * default) and drawn without smoothing; contacts without a photo get a symmetric 8x8 invader
+ * generated from their name. Enemies always get the red invader.
  */
 @Composable
 fun PixelAvatar(name: String, photoUri: String?, size: Dp, enemy: Boolean = false) {
     val p = LocalPalette.current
     val context = LocalContext.current
-    var sprite by remember(photoUri) { mutableStateOf(spriteCache.get(photoUri ?: "")) }
-    LaunchedEffect(photoUri) {
+    val detail = LocalBitSettings.current.pixelDetail
+    val cacheKey = "$detail:${photoUri ?: ""}"
+    var sprite by remember(cacheKey) { mutableStateOf(spriteCache.get(cacheKey)) }
+    LaunchedEffect(cacheKey) {
         if (photoUri == null || sprite != null) return@LaunchedEffect
         sprite = withContext(Dispatchers.IO) {
             runCatching {
                 val src = ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, Uri.parse(photoUri))) { d, _, _ ->
                     d.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
                 }
-                Bitmap.createScaledBitmap(src, 16, 16, true).asImageBitmap().also { spriteCache.put(photoUri, it) }
+                val side = minOf(src.width, src.height)
+                val square = Bitmap.createBitmap(src, (src.width - side) / 2, (src.height - side) / 2, side, side)
+                Bitmap.createScaledBitmap(square, detail, detail, true).asImageBitmap().also { spriteCache.put(cacheKey, it) }
             }.getOrNull()
         }
     }
-    val shape = RoundedCornerShape(size / 6)
-    val frame = Modifier.size(size).clip(shape).border(2.dp, if (enemy) p.bad else p.surface2, shape)
+    val shape = bitShape(size / 6)
+    val frame = Modifier.size(size).clip(shape).border(3.dp, if (enemy) p.bad else p.border, shape)
     val s = sprite
     if (s != null && !enemy) {
         Image(s, null, frame, contentScale = ContentScale.Crop, filterQuality = FilterQuality.None)
@@ -143,6 +147,6 @@ fun SectionTitle(text: String, modifier: Modifier = Modifier) {
 fun Card(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val p = LocalPalette.current
     Column(
-        modifier.clip(RoundedCornerShape(10.dp)).background(p.surface).border(3.dp, p.surface2, RoundedCornerShape(10.dp)).padding(12.dp),
+        modifier.clip(bitShape(10.dp)).background(p.surface).border(3.dp, p.border, bitShape(10.dp)).padding(12.dp),
     ) { content() }
 }

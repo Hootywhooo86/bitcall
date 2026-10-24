@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -46,6 +48,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -57,6 +60,7 @@ import app.bitcall.data.CallEntry
 import app.bitcall.data.CallLogRepo
 import app.bitcall.data.Contact
 import app.bitcall.data.ContactsRepo
+import app.bitcall.data.DialPad
 import app.bitcall.data.Phone
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -133,7 +137,7 @@ fun Home(activity: MainActivity, incomingDial: MutableStateFlow<String?>) {
     var settings by remember { mutableStateOf(false) }
     var details by remember { mutableStateOf<Long?>(null) }
     var settingsSection by remember { mutableStateOf<Section?>(null) }
-    var digits by remember { mutableStateOf("") }
+    val digits by DialPad.digits.collectAsStateWithLifecycle()
     var refresh by remember { mutableIntStateOf(0) }
     var contacts by remember { mutableStateOf<List<Contact>>(emptyList()) }
     var calls by remember { mutableStateOf<List<CallEntry>>(emptyList()) }
@@ -150,7 +154,7 @@ fun Home(activity: MainActivity, incomingDial: MutableStateFlow<String?>) {
         calls = CallLogRepo.recent(context)
     }
     LaunchedEffect(Unit) {
-        incomingDial.collect { n -> if (n != null) { digits = n; tab = Tab.KEYPAD; settings = false; incomingDial.value = null } }
+        incomingDial.collect { n -> if (n != null) { DialPad.set(n); tab = Tab.KEYPAD; settings = false; incomingDial.value = null } }
     }
     BackHandler(settings) { settings = false }
 
@@ -201,21 +205,28 @@ fun Home(activity: MainActivity, incomingDial: MutableStateFlow<String?>) {
         }
         Box(Modifier.weight(1f)) {
             when (tab) {
-                Tab.KEYPAD -> DialerScreen(digits, { digits = it }, contacts, onChanged = { refresh++ })
+                Tab.KEYPAD -> DialerScreen(
+                    digits, DialPad::set, contacts,
+                    lastDialed = calls.firstOrNull { it.type == android.provider.CallLog.Calls.OUTGOING_TYPE }?.number,
+                    onChanged = { refresh++ },
+                )
                 Tab.RECENTS -> RecentsScreen(calls, contacts, onChanged = { refresh++ }, onOpen = { details = it })
                 Tab.CONTACTS -> ContactsScreen(contacts, onChanged = { refresh++ }, onOpen = { details = it.id })
                 Tab.VOICEMAIL -> VoicemailScreen()
             }
         }
-        Row(Modifier.fillMaxWidth().background(p.surface).padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+        // Pixel rule on top of the tab bar; the selected tab gets a chunky pixel bar over its icon.
+        Box(Modifier.fillMaxWidth().height(3.dp).background(p.border))
+        Row(Modifier.fillMaxWidth().background(p.tabBar).padding(bottom = 6.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
             Tab.entries.forEach { t ->
                 val sel = t == tab
                 Column(
-                    Modifier.clickable { tab = t }.padding(8.dp).widthIn(min = 64.dp),
+                    Modifier.clickable { tab = t }.widthIn(min = 72.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Icon(t.icon, t.label, tint = if (sel) p.accent else p.dim)
-                    Text(t.label, style = px(7, if (sel) p.accent else p.dim), modifier = Modifier.padding(top = 4.dp))
+                    Box(Modifier.size(width = 36.dp, height = 4.dp).background(if (sel) p.tabActive else Color.Transparent))
+                    Icon(t.icon, t.label, tint = if (sel) p.tabActive else p.dim, modifier = Modifier.padding(top = 6.dp).size(26.dp))
+                    Text(t.label, style = px(7, if (sel) p.tabActive else p.dim), modifier = Modifier.padding(top = 4.dp))
                 }
             }
         }
@@ -227,7 +238,8 @@ fun Home(activity: MainActivity, incomingDial: MutableStateFlow<String?>) {
 private fun TopBar(favorites: List<Contact>, onSettings: () -> Unit, onInfo: (Contact) -> Unit, onCall: (String) -> Unit) {
     val p = LocalPalette.current
     var open by remember { mutableStateOf(false) }
-    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        LogoTitle()
         Spacer(Modifier.weight(1f))
         Box {
             PixelButton(p.surface2, onClick = { open = true }) {

@@ -35,7 +35,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
@@ -137,7 +136,7 @@ private fun InCallScreen(ui: CallUi) {
         )
         if (!hasContent) Spacer(Modifier.weight(1f))
         Spacer(Modifier.height(8.dp))
-        RingingAvatar(ui, active = ringing || dialing, size = if (hasContent) 96.dp else 176.dp)
+        RingingAvatar(ui, active = ringing || dialing, size = if (hasContent) avatarSize(72.dp) else avatarSize(140.dp))
         Spacer(Modifier.height(12.dp))
         Text(ui.name ?: Phone.pretty(ui.number), style = px(if (hasContent) 16 else 20, p.text, glow = p.accent), textAlign = TextAlign.Center)
         if (ui.name != null) Text(Phone.pretty(ui.number), style = px(11, p.dim), modifier = Modifier.padding(top = 8.dp))
@@ -181,13 +180,13 @@ private fun InCallScreen(ui: CallUi) {
 
         if (ringing) {
             Row(Modifier.fillMaxWidth().padding(bottom = 20.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
-                RoundAction(p.bad, Icons.Filled.CallEnd, "DECLINE") { CallManager.hangup() }
+                RoundAction(p.hangup, Icons.Filled.CallEnd, "DECLINE") { CallManager.hangup() }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     PixelChip("💬 REPLY", panel == Panel.REPLY) { panel = if (panel == Panel.REPLY) Panel.NONE else Panel.REPLY }
                     Spacer(Modifier.height(8.dp))
                     PixelChip("🔕 SILENCE", false) { CallManager.silence() }
                 }
-                RoundAction(p.good, Icons.Filled.Call, "ANSWER") { CallManager.answer() }
+                RoundAction(p.call, Icons.Filled.Call, "ANSWER") { CallManager.answer() }
             }
         } else if (ui.state != Call.STATE_DISCONNECTED) {
             val grid = buildList<Triple<String, Boolean, () -> Unit>> {
@@ -227,7 +226,7 @@ private fun InCallScreen(ui: CallUi) {
                 }
             }
             Spacer(Modifier.height(12.dp))
-            RoundAction(p.bad, Icons.Filled.CallEnd, "END") { CallManager.hangup() }
+            RoundAction(p.hangup, Icons.Filled.CallEnd, "END") { CallManager.hangup() }
             Spacer(Modifier.height(16.dp))
         }
     }
@@ -252,7 +251,7 @@ private fun statusText(ui: CallUi): String {
 private fun Banner(text: String, color: Color, onClick: () -> Unit) {
     Text(
         text, style = px(8, onColor(color)), textAlign = TextAlign.Center,
-        modifier = Modifier.padding(top = 12.dp).fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(color).clickable(onClick = onClick).padding(12.dp),
+        modifier = Modifier.padding(top = 12.dp).fillMaxWidth().clip(bitShape(8.dp)).background(color).clickable(onClick = onClick).padding(12.dp),
     )
 }
 
@@ -330,7 +329,7 @@ private fun RingingAvatar(ui: CallUi, active: Boolean, size: androidx.compose.ui
                 val f = (pulse + offset) % 1f
                 Box(
                     Modifier.size(size + size * 0.45f * f).alpha(1f - f)
-                        .border(4.dp, ringColor, RoundedCornerShape(18.dp)),
+                        .border(4.dp, ringColor, bitShape(18.dp)),
                 )
             }
         }

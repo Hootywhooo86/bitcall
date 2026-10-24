@@ -12,6 +12,14 @@ data class BitSettings(
     val palette: String = "PIXEL_NIGHT",
     val keyColors: Map<Int, Long> = emptyMap(), // keypad index (0..11) -> ARGB override
     val crt: Boolean = true,
+    // Look & feel: every themed colour can be overridden on top of the palette.
+    val colorOverrides: Map<String, Long> = emptyMap(), // ColorSlot name -> ARGB
+    val corners: String = "PIXEL",    // PIXEL | ROUND | SQUARE
+    val cardSize: String = "BIG",     // COMPACT | NORMAL | BIG | HUGE
+    val pixelDetail: Int = 32,        // contact photos are crushed to this many pixels across
+    val textScale: Float = 1f,
+    val keyLetters: Boolean = true,
+    val haptics: Boolean = true,
     val keySounds: Boolean = true,
     val chipRingtone: Boolean = true,
     // Call Assist
@@ -58,6 +66,11 @@ object Settings {
     fun init(context: Context) {
         prefs = context.getSharedPreferences("bitcall", Context.MODE_PRIVATE)
         _state.value = load()
+        DialPad.digits.value = prefs.getString("dialDigits", "")!!
+    }
+
+    internal fun saveDigits(digits: String) {
+        if (::prefs.isInitialized) prefs.edit().putString("dialDigits", digits).apply()
     }
 
     fun update(block: (BitSettings) -> BitSettings) {
@@ -74,6 +87,15 @@ object Settings {
                 JSONObject(j).let { o -> o.keys().asSequence().associate { it.toInt() to o.getLong(it) } }
             } ?: d.keyColors,
             crt = prefs.getBoolean("crt", d.crt),
+            colorOverrides = prefs.getString("colorOverrides", null)?.let { j ->
+                JSONObject(j).let { o -> o.keys().asSequence().associateWith { o.getLong(it) } }
+            } ?: d.colorOverrides,
+            corners = prefs.getString("corners", d.corners)!!,
+            cardSize = prefs.getString("cardSize", d.cardSize)!!,
+            pixelDetail = prefs.getInt("pixelDetail", d.pixelDetail),
+            textScale = prefs.getFloat("textScale", d.textScale),
+            keyLetters = prefs.getBoolean("keyLetters", d.keyLetters),
+            haptics = prefs.getBoolean("haptics", d.haptics),
             keySounds = prefs.getBoolean("keySounds", d.keySounds),
             chipRingtone = prefs.getBoolean("chipRingtone", d.chipRingtone),
             rejectSpam = prefs.getBoolean("rejectSpam", d.rejectSpam),
@@ -108,6 +130,13 @@ object Settings {
             .putString("palette", s.palette)
             .putString("keyColors", JSONObject(s.keyColors.mapKeys { it.key.toString() }).toString())
             .putBoolean("crt", s.crt)
+            .putString("colorOverrides", JSONObject(s.colorOverrides).toString())
+            .putString("corners", s.corners)
+            .putString("cardSize", s.cardSize)
+            .putInt("pixelDetail", s.pixelDetail)
+            .putFloat("textScale", s.textScale)
+            .putBoolean("keyLetters", s.keyLetters)
+            .putBoolean("haptics", s.haptics)
             .putBoolean("keySounds", s.keySounds)
             .putBoolean("chipRingtone", s.chipRingtone)
             .putBoolean("rejectSpam", s.rejectSpam)
@@ -137,5 +166,18 @@ object Settings {
         if (!s.dndEnabled) return false
         return if (s.dndStart <= s.dndEnd) minuteOfDay in s.dndStart until s.dndEnd
         else minuteOfDay >= s.dndStart || minuteOfDay < s.dndEnd // wraps midnight
+    }
+}
+
+/**
+ * What's typed on the keypad. Lives outside the screen (and on disk) so the number is still there
+ * after a call ends, even if Android rebuilt the dialer while the call screen was up.
+ */
+object DialPad {
+    val digits = MutableStateFlow("")
+
+    fun set(value: String) {
+        digits.value = value
+        Settings.saveDigits(value)
     }
 }

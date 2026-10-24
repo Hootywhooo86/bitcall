@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -77,27 +76,27 @@ private fun FavoriteRow(c: Contact, onInfo: () -> Unit, onCall: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(bitShape(12.dp))
             .background(p.surface)
             .clickable(onClick = onCall)
             .heightIn(min = 76.dp)
             .padding(start = 14.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        PixelAvatar(c.name, c.photoUri, 48.dp)
+        PixelAvatar(c.name, c.photoUri, avatarSize(56.dp))
         Column(Modifier.weight(1f).padding(start = 14.dp)) {
-            Text(c.name, style = px(12, p.text), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(c.name, style = px(13, p.text), maxLines = 2, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(8.dp))
             Text(Phone.pretty(c.primary), style = px(9, p.dim), maxLines = 1)
         }
         Box(
-            Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).clickable(onClick = onInfo),
+            Modifier.size(48.dp).clip(bitShape(8.dp)).clickable(onClick = onInfo),
             contentAlignment = Alignment.Center,
         ) { Text("ⓘ", style = px(16, p.dim)) }
         Box(
-            Modifier.padding(end = 6.dp).size(48.dp).clip(RoundedCornerShape(12.dp)).background(p.accent).clickable(onClick = onCall),
+            Modifier.padding(end = 6.dp).size(52.dp).clip(bitShape(8.dp)).background(p.call).clickable(onClick = onCall),
             contentAlignment = Alignment.Center,
-        ) { Text("☎", style = px(16, onColor(p.accent))) }
+        ) { Text("☎", style = px(16, onColor(p.call))) }
         Spacer(Modifier.width(4.dp))
     }
 }

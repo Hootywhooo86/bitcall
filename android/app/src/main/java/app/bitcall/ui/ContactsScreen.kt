@@ -4,9 +4,9 @@ import android.accounts.AccountManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -70,15 +70,13 @@ fun ContactsScreen(contacts: List<Contact>, onChanged: () -> Unit, onOpen: (Cont
         LazyColumn(Modifier.fillMaxSize().padding(top = 8.dp)) {
             if (favorites.isNotEmpty()) {
                 item { SectionTitle("★ Favorites · ${favorites.size}") }
-                // Favorites sit on tone cards with even gaps, so they read as their own group.
+                // Favorites get an accent frame, so they read as their own group.
                 items(favorites, key = { "f${it.id}" }) { c ->
-                    Box(Modifier.padding(vertical = 4.dp).clip(RoundedCornerShape(14.dp)).background(p.surface).padding(horizontal = 12.dp)) {
-                        ContactRow(c, { onOpen(c) }) { star(context, scope, c, onChanged) }
-                    }
+                    ContactRow(c, favorite = true, { onOpen(c) }) { star(context, scope, c, onChanged) }
                 }
                 item { SectionTitle("All contacts", Modifier.padding(top = 12.dp)) }
             }
-            items(shown, key = { it.id }) { c -> ContactRow(c, { onOpen(c) }) { star(context, scope, c, onChanged) } }
+            items(shown, key = { it.id }) { c -> ContactRow(c, favorite = false, { onOpen(c) }) { star(context, scope, c, onChanged) } }
             if (contacts.isEmpty()) item {
                 Text("No contacts yet — tap + ADD.\nNew contacts save to your Google account.", style = px(8, p.dim), modifier = Modifier.padding(16.dp))
             }
@@ -94,17 +92,21 @@ private fun star(context: android.content.Context, scope: kotlinx.coroutines.Cor
     }
 }
 
+/** One caller card: big pixel photo, name, number, and a star to (un)favorite. */
 @Composable
-private fun ContactRow(c: Contact, onOpen: () -> Unit, onStar: () -> Unit) {
+private fun ContactRow(c: Contact, favorite: Boolean, onOpen: () -> Unit, onStar: () -> Unit) {
     val p = LocalPalette.current
     val enemy = c.numbers.any { Phone.isSpam(it) }
+    val shape = bitShape(12.dp)
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(vertical = 10.dp),
+        Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(shape).background(p.surface)
+            .border(3.dp, if (favorite) p.accent else p.border, shape)
+            .clickable(onClick = onOpen).padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        PixelAvatar(c.name, c.photoUri, 52.dp, enemy)
+        PixelAvatar(c.name, c.photoUri, avatarSize(60.dp), enemy)
         Column(Modifier.weight(1f).padding(start = 14.dp)) {
-            Text(c.name, style = px(13, p.text), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(c.name, style = px(14, p.text), maxLines = 2, overflow = TextOverflow.Ellipsis)
             Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(Phone.pretty(c.primary), style = px(10, p.dim))
                 if (enemy) EnemyBadge(Modifier.padding(start = 6.dp))

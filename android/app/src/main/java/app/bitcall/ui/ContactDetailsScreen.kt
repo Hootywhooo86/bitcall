@@ -88,14 +88,14 @@ fun ContactDetailsScreen(contactId: Long, calls: List<CallEntry>, onBack: () -> 
 
         LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             item {
-                PixelAvatar(c.name, c.photoUri, 140.dp, enemy)
+                PixelAvatar(c.name, c.photoUri, avatarSize(140.dp), enemy)
                 Text(c.name, style = px(18, p.text, glow = p.accent), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 14.dp))
                 c.company?.let { Text(it, style = px(10, p.dim), modifier = Modifier.padding(top = 8.dp)) }
                 if (enemy) EnemyBadge(Modifier.padding(top = 8.dp))
                 Row(Modifier.padding(vertical = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     c.phones.firstOrNull()?.let { (_, n) ->
-                        PixelButton(p.good, Modifier.size(width = 110.dp, height = 64.dp), onClick = { Phone.call(context, n) }) {
-                            Text("📞 CALL", style = px(10, onColor(p.good)))
+                        PixelButton(p.call, Modifier.size(width = 110.dp, height = 64.dp), onClick = { Phone.call(context, n) }) {
+                            Text("📞 CALL", style = px(10, onColor(p.call)))
                         }
                         PixelButton(p.accent, Modifier.size(width = 110.dp, height = 64.dp), onClick = { sms(context, n) }) {
                             Text("💬 TEXT", style = px(10, onColor(p.accent)))

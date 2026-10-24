@@ -7,6 +7,8 @@ import android.net.Uri
 import android.provider.CallLog
 import android.text.format.DateUtils
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,7 +23,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -136,16 +137,18 @@ private fun RecentRow(e: CallEntry, photo: String?, hasMemo: Boolean, score: Int
         CallLog.Calls.VOICEMAIL_TYPE -> "◎" to p.accent
         else -> "↙" to p.accent
     }
+    val shape = bitShape(12.dp)
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(if (open) p.surface else Color.Transparent)
-            .clickable(onClick = onClick).padding(8.dp),
+        Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(shape).background(p.surface)
+            .border(3.dp, if (open) p.accent else p.border, shape)
+            .clickable(onClick = onClick).padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        PixelAvatar(e.name ?: e.number, photo, 40.dp, enemy)
-        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+        PixelAvatar(e.name ?: e.number, photo, avatarSize(52.dp), enemy)
+        Column(Modifier.weight(1f).padding(start = 14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    e.name ?: Phone.pretty(e.number), style = px(10, if (e.missed) p.bad else p.text),
+                    e.name ?: Phone.pretty(e.number), style = px(12, if (e.missed) p.bad else p.text),
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
                 )
                 if (enemy) EnemyBadge(Modifier.padding(start = 6.dp))
@@ -153,9 +156,15 @@ private fun RecentRow(e: CallEntry, photo: String?, hasMemo: Boolean, score: Int
             if (score >= 70) Text("BOSS LEVEL · SPAM SCORE $score", style = px(6, p.bad), modifier = Modifier.padding(top = 4.dp))
             Text(
                 "$icon  " + DateUtils.getRelativeTimeSpanString(e.date) + (if (e.durationSec > 0) " · ${DateUtils.formatElapsedTime(e.durationSec)}" else "") + if (hasMemo) "  🗒" else "",
-                style = px(7, color), modifier = Modifier.padding(top = 6.dp),
+                style = px(8, color), modifier = Modifier.padding(top = 6.dp),
             )
         }
+        // One-tap call back, right on the card.
+        val context = LocalContext.current
+        Box(
+            Modifier.padding(start = 6.dp).size(48.dp).clip(bitShape(8.dp)).background(p.call).clickable { Phone.call(context, e.number) },
+            contentAlignment = Alignment.Center,
+        ) { Text("☎", style = px(16, onColor(p.call))) }
     }
 }
 
@@ -232,7 +241,7 @@ private fun XpCard(stats: app.bitcall.data.CallStats) {
             Text("  ${stats.xp} XP", style = px(9, p.text), modifier = Modifier.weight(1f))
             if (stats.streakDays > 0) Text("🔥${stats.streakDays}", style = px(10, p.text))
         }
-        Box(Modifier.padding(top = 10.dp).fillMaxWidth().height(12.dp).clip(RoundedCornerShape(3.dp)).background(p.surface2)) {
+        Box(Modifier.padding(top = 10.dp).fillMaxWidth().height(12.dp).clip(bitShape(3.dp)).background(p.surface2)) {
             Box(Modifier.fillMaxHeight().fillMaxWidth(stats.levelProgress.coerceIn(0.02f, 1f)).background(p.good))
         }
         if (open) {
@@ -241,7 +250,7 @@ private fun XpCard(stats: app.bitcall.data.CallStats) {
                 style = px(8, p.dim), modifier = Modifier.padding(top = 12.dp),
             )
             FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                stats.badges.forEach { Text(it, style = px(7, p.text), modifier = Modifier.padding(vertical = 4.dp).clip(RoundedCornerShape(4.dp)).background(p.surface2).padding(6.dp)) }
+                stats.badges.forEach { Text(it, style = px(7, p.text), modifier = Modifier.padding(vertical = 4.dp).clip(bitShape(4.dp)).background(p.surface2).padding(6.dp)) }
             }
         }
     }

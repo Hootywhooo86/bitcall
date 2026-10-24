@@ -5,4 +5,5 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
     <color name="bg">#0D0D1A</color>
+    <color name="icon_bg">#1A1A2E</color>
 </resources>

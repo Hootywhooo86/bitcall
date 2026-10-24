@@ -1,6 +1,9 @@
 package app.bitcall.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,7 +35,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -48,11 +56,14 @@ val KEYS = listOf(
     "*" to "", "0" to "+", "#" to "",
 )
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Contact>, onChanged: () -> Unit) {
+fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Contact>, lastDialed: String?, onChanged: () -> Unit) {
     val p = LocalPalette.current
     val s = LocalBitSettings.current
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
+    val clipboard = LocalClipboardManager.current
     var speedDialFor by remember { mutableStateOf<Int?>(null) }
     var adding by remember { mutableStateOf(false) }
 
@@ -66,10 +77,11 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.Bottom) {
             items(matches, key = { it.id }) { c ->
                 Row(
-                    Modifier.fillMaxWidth().clickable { Phone.call(context, c.primary) }.padding(vertical = 8.dp),
+                    Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(bitShape(12.dp)).background(p.surface)
+                        .clickable { Phone.call(context, c.primary) }.padding(horizontal = 10.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    PixelAvatar(c.name, c.photoUri, 48.dp, enemy = Phone.isSpam(c.primary))
+                    PixelAvatar(c.name, c.photoUri, avatarSize(48.dp), enemy = Phone.isSpam(c.primary))
                     Column(Modifier.padding(start = 14.dp).weight(1f)) {
                         Text(c.name, style = px(13, p.text), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(Phone.pretty(c.primary), style = px(10, p.dim), modifier = Modifier.padding(top = 6.dp))
@@ -79,16 +91,28 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
             }
         }
 
-        // Number display: tap to clear, like the landing page.
+        // Number display: tap to clear, like the landing page. Long-press copies the number, or
+        // pastes one from the clipboard when nothing is typed yet.
         Row(Modifier.fillMaxWidth().height(64.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { adding = true }, enabled = digits.isNotEmpty()) {
                 Icon(Icons.Filled.PersonAdd, "Add contact", tint = if (digits.isNotEmpty()) p.dim else p.bg)
             }
             Text(
-                digits,
-                style = px(if (digits.length > 12) 14 else 20, p.accent, glow = p.accent),
+                digits.ifEmpty { "ENTER A NUMBER" },
+                style = if (digits.isEmpty()) px(9, p.dim) else px(if (digits.length > 12) 14 else 20, p.digits, glow = p.digits),
                 textAlign = TextAlign.Center, maxLines = 1,
-                modifier = Modifier.weight(1f).clickable { setDigits("") },
+                modifier = Modifier.weight(1f).combinedClickable(
+                    onClick = { setDigits("") },
+                    onLongClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        if (digits.isNotEmpty()) {
+                            clipboard.setText(AnnotatedString(digits))
+                        } else {
+                            val pasted = clipboard.getText()?.text.orEmpty().filter { it.isDigit() || it in "+*#" }.take(24)
+                            if (pasted.isNotEmpty()) setDigits(pasted)
+                        }
+                    },
+                ),
             )
             IconButton(onClick = { setDigits(digits.dropLast(1)) }, enabled = digits.isNotEmpty()) {
                 Icon(Icons.AutoMirrored.Filled.Backspace, "Delete", tint = if (digits.isNotEmpty()) p.dim else p.bg)
@@ -116,6 +140,7 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
                                 }
                             },
                             onClick = {
+                                if (s.haptics) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 if (s.keySounds) ChipSound.keyBlip(index)
                                 if (digits.length < 24) setDigits(digits + d)
                             },
@@ -123,7 +148,7 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(d, style = px(18, onColor(color)))
                                 val speed = s.speedDial[digit - '0']
-                                Text(
+                                if (s.keyLetters || speed != null) Text(
                                     if (speed != null && digit in '2'..'9') "⚡" else sub,
                                     style = px(6, onColor(color).copy(alpha = 0.7f)), modifier = Modifier.padding(top = 4.dp),
                                 )
@@ -136,10 +161,11 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
         Spacer(Modifier.height(10.dp))
         Row(Modifier.padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.width(56.dp))
-            PixelButton(p.good, Modifier.size(width = 120.dp, height = 64.dp), onClick = {
-                if (digits.isNotEmpty()) Phone.call(context, digits)
+            // Empty keypad + CALL brings back the last number dialed, like most phones.
+            PixelButton(p.call, Modifier.size(width = 140.dp, height = 68.dp), onClick = {
+                if (digits.isNotEmpty()) Phone.call(context, digits) else lastDialed?.let(setDigits)
             }) {
-                Icon(Icons.Filled.Call, "Call", tint = onColor(p.good), modifier = Modifier.size(28.dp))
+                Icon(Icons.Filled.Call, "Call", tint = onColor(p.call), modifier = Modifier.size(30.dp))
             }
             Box(Modifier.width(56.dp))
         }
@@ -166,7 +192,7 @@ fun SpeedDialPicker(slot: Int, typed: String, contacts: List<Contact>, onDismiss
                 }
                 items(contacts.sortedByDescending { it.starred }, key = { it.id }) { c ->
                     Row(Modifier.fillMaxWidth().clickable { assign(c.primary) }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        PixelAvatar(c.name, c.photoUri, 44.dp)
+                        PixelAvatar(c.name, c.photoUri, avatarSize(44.dp))
                         Text(c.name, style = px(12, p.text), modifier = Modifier.padding(start = 12.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
