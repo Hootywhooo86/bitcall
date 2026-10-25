@@ -206,6 +206,4 @@ private fun DetailLine(icon: String, text: String, onClick: (() -> Unit)?) {
     }
 }
 
-private fun sms(context: android.content.Context, number: String) = context.startActivity(
-    Intent(Intent.ACTION_SENDTO, Uri.fromParts("smsto", number, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-)
+private fun sms(context: android.content.Context, number: String) = Phone.text(context, number)

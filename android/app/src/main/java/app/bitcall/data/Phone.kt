@@ -31,6 +31,17 @@ object Phone {
         context.getSystemService(TelecomManager::class.java).placeCall(uri, Bundle())
     }
 
+    /** 💬 TEXT: opens the chat in bitmessenger when it's installed, else the phone's texting app. */
+    fun text(context: Context, number: String) {
+        val intent = android.content.Intent(android.content.Intent.ACTION_SENDTO, Uri.fromParts("smsto", number, null))
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        val family = android.content.Intent(intent).setPackage(BITMESSENGER)
+        val target = if (context.packageManager.queryIntentActivities(family, 0).isNotEmpty()) family else intent
+        runCatching { context.startActivity(target) }
+    }
+
+    const val BITMESSENGER = "app.bitmessenger"
+
     private val T9 = mapOf(
         'a' to '2', 'b' to '2', 'c' to '2', 'd' to '3', 'e' to '3', 'f' to '3',
         'g' to '4', 'h' to '4', 'i' to '4', 'j' to '5', 'k' to '5', 'l' to '5',

@@ -179,7 +179,7 @@ private fun RecentDetails(e: CallEntry, memo: app.bitcall.data.CallMemo?, contac
             PixelChip("📞 CALL", false) { Phone.call(context, e.number) }
             if (contactId != null) PixelChip("👤 DETAILS", false) { onOpen(contactId) }
             PixelChip("💬 TEXT", false) {
-                context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.fromParts("smsto", e.number, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                Phone.text(context, e.number)
             }
             if (contactId == null) PixelChip("+ CONTACT", false, onAdd)
             PixelChip(if (enemy) "✓ NOT SPAM" else "👾 SPAM", enemy) { toggleSpam(e.number) }

@@ -26,6 +26,8 @@
     <uses-feature android:name="android.hardware.telephony" android:required="true" />
 
     <queries>
+        <!-- 💬 TEXT opens bitmessenger, the family's texting app, when it's installed. -->
+        <package android:name="app.bitmessenger" />
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
