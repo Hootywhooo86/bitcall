@@ -43,6 +43,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -107,6 +108,12 @@ private fun InCallScreen(ui: CallUi) {
     val hold by CallManager.hold.collectAsState()
     var panel by remember { mutableStateOf(Panel.NONE) }
     val ringing = ui.state == Call.STATE_RINGING
+    // Keep the screen lit while it rings, so the buttons don't vanish before you can grab the phone.
+    val view = androidx.compose.ui.platform.LocalView.current
+    DisposableEffect(ringing) {
+        view.keepScreenOn = ringing
+        onDispose { view.keepScreenOn = false }
+    }
     val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         if (ok) RecorderService.start(context)
     }
@@ -179,14 +186,14 @@ private fun InCallScreen(ui: CallUi) {
         }
 
         if (ringing) {
-            Row(Modifier.fillMaxWidth().padding(bottom = 20.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
-                RoundAction(p.hangup, Icons.Filled.CallEnd, "DECLINE") { CallManager.hangup() }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    PixelChip("💬 REPLY", panel == Panel.REPLY) { panel = if (panel == Panel.REPLY) Panel.NONE else Panel.REPLY }
-                    Spacer(Modifier.height(8.dp))
-                    PixelChip("🔕 SILENCE", false) { CallManager.silence() }
-                }
-                RoundAction(p.call, Icons.Filled.Call, "ANSWER") { CallManager.answer() }
+            // Big, easy targets: half the screen width each, so they're findable in the dark.
+            Row(Modifier.padding(bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                PixelChip("💬 REPLY", panel == Panel.REPLY) { panel = if (panel == Panel.REPLY) Panel.NONE else Panel.REPLY }
+                PixelChip("🔕 SILENCE", false) { CallManager.silence() }
+            }
+            Row(Modifier.fillMaxWidth().padding(bottom = 24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                BigAction(p.hangup, Icons.Filled.CallEnd, "DECLINE", Modifier.weight(1f)) { CallManager.hangup() }
+                BigAction(p.call, Icons.Filled.Call, "ANSWER", Modifier.weight(1f)) { CallManager.answer() }
             }
         } else if (ui.state != Call.STATE_DISCONNECTED) {
             val grid = buildList<Triple<String, Boolean, () -> Unit>> {
@@ -253,6 +260,16 @@ private fun Banner(text: String, color: Color, onClick: () -> Unit) {
         text, style = px(8, onColor(color)), textAlign = TextAlign.Center,
         modifier = Modifier.padding(top = 12.dp).fillMaxWidth().clip(bitShape(8.dp)).background(color).clickable(onClick = onClick).padding(12.dp),
     )
+}
+
+@Composable
+private fun BigAction(color: Color, icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, modifier: Modifier, onClick: () -> Unit) {
+    PixelButton(color, modifier.height(128.dp), onClick = onClick) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(icon, label, tint = onColor(color), modifier = Modifier.size(52.dp))
+            Text(label, style = px(12, onColor(color)), modifier = Modifier.padding(top = 8.dp))
+        }
+    }
 }
 
 @Composable

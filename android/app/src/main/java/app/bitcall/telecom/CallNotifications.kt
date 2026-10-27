@@ -8,6 +8,7 @@ import android.app.Person
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.telecom.Call
 import app.bitcall.R
 import app.bitcall.data.Phone
@@ -74,15 +75,23 @@ object CallNotifications {
             .setOngoing(true)
             .setContentIntent(openCallScreen(context))
         if (ringing) {
+            // Full-screen intent: wakes the screen and shows the call screen over the lock screen.
             b.setFullScreenIntent(openCallScreen(context), true)
-            b.addAction(Notification.Action.Builder(null, "Decline", action(context, CallActionReceiver.DECLINE, 1)).build())
+            val decline = action(context, CallActionReceiver.DECLINE, 1)
             // Answer opens the call screen directly (Android 12+ blocks receiver→activity trampolines).
             val answer = PendingIntent.getActivity(
                 context, 2,
                 Intent(context, InCallActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra(InCallActivity.EXTRA_ANSWER, true),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
-            b.addAction(Notification.Action.Builder(null, "Answer", answer).build())
+            if (Build.VERSION.SDK_INT >= 31) {
+                // Android's own call layout: big green Answer and red Decline in the pop-up.
+                val caller = Person.Builder().setName(who).setUri("tel:" + ui.number).setImportant(ui.starred).build()
+                b.setStyle(Notification.CallStyle.forIncomingCall(caller, decline, answer))
+            } else {
+                b.addAction(Notification.Action.Builder(null, "Decline", decline).build())
+                b.addAction(Notification.Action.Builder(null, "Answer", answer).build())
+            }
         } else {
             if (ui.connectTime > 0) b.setUsesChronometer(true).setWhen(ui.connectTime)
             b.addAction(Notification.Action.Builder(null, "Hang up", action(context, CallActionReceiver.HANGUP, 3)).build())

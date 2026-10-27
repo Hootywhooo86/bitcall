@@ -94,6 +94,17 @@ class MainActivity : ComponentActivity() {
         Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", packageName, null)),
     )
 
+    /** Android 14+ can switch off full-screen notifications per app; incoming calls need them. */
+    fun canShowCallsFullScreen(): Boolean =
+        Build.VERSION.SDK_INT < 34 || getSystemService(android.app.NotificationManager::class.java).canUseFullScreenIntent()
+
+    fun openFullScreenSettings() {
+        if (Build.VERSION.SDK_INT < 34) return
+        runCatching {
+            startActivity(Intent(android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, android.net.Uri.fromParts("package", packageName, null)))
+        }.onFailure { openAppInfo() }
+    }
+
     fun isDefaultDialer() = getSystemService(RoleManager::class.java).isRoleHeld(RoleManager.ROLE_DIALER)
 
     fun requestDefaultDialer() {
@@ -150,10 +161,11 @@ fun Home(activity: MainActivity, incomingDial: MutableStateFlow<String?>) {
     var contacts by remember { mutableStateOf<List<Contact>>(emptyList()) }
     var calls by remember { mutableStateOf<List<CallEntry>>(emptyList()) }
     var isDefault by remember { mutableStateOf(activity.isDefaultDialer()) }
+    var fullScreenOk by remember { mutableStateOf(activity.canShowCallsFullScreen()) }
 
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
-        val obs = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME) { refresh++; isDefault = activity.isDefaultDialer() } }
+        val obs = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME) { refresh++; isDefault = activity.isDefaultDialer(); fullScreenOk = activity.canShowCallsFullScreen() } }
         lifecycle.addObserver(obs)
         onDispose { lifecycle.removeObserver(obs) }
     }
@@ -193,6 +205,15 @@ fun Home(activity: MainActivity, incomingDial: MutableStateFlow<String?>) {
             Card(Modifier.padding(horizontal = 12.dp).fillMaxWidth().clickable { activity.requestDefaultDialer() }) {
                 Text("▶ TAP TO MAKE BITCALL YOUR PHONE APP", style = px(9, p.accent))
                 Text("Needed to place, answer, screen and record calls.", style = px(7, p.dim), modifier = Modifier.padding(top = 6.dp))
+            }
+        }
+        if (isDefault && !fullScreenOk) {
+            // Without this, incoming calls only show as a small pop-up and never wake a locked phone.
+            Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp).fillMaxWidth()) {
+                Text("⚠ CALLS CAN'T WAKE YOUR SCREEN", style = px(9, p.bad))
+                Text("Allow full-screen calls so an incoming call lights up the phone and shows big ANSWER / DECLINE buttons over the lock screen.",
+                    style = px(7, p.text), modifier = Modifier.padding(vertical = 8.dp))
+                Row { PixelChip("ALLOW FULL-SCREEN CALLS", true) { activity.openFullScreenSettings() } }
             }
         }
         val bit = LocalBitSettings.current
