@@ -128,8 +128,28 @@ object Ringer {
         else -> "silent"
     }
 
+    private var waitingTone: android.media.ToneGenerator? = null
+
+    /** Call waiting: the network's call-waiting beep in your ear every few seconds, plus a buzz. */
+    fun callWaiting(context: Context) {
+        stop()
+        vibrator = context.getSystemService(Vibrator::class.java)?.also {
+            it.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 500, 300, 500, 2700), 0))
+        }
+        waitingTone = runCatching { android.media.ToneGenerator(AudioManager.STREAM_VOICE_CALL, 80) }.getOrNull()
+        val beep = object : Runnable {
+            override fun run() {
+                waitingTone?.startTone(android.media.ToneGenerator.TONE_SUP_CALL_WAITING, 800)
+                main.postDelayed(this, 4000)
+            }
+        }
+        main.post(beep)
+    }
+
     fun stop() {
         main.removeCallbacksAndMessages(null)
+        waitingTone?.runCatching { stopTone(); release() }
+        waitingTone = null
         track?.runCatching { stop(); release() }
         track = null
         ringtone?.stop()

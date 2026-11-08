@@ -84,13 +84,14 @@ class InCallActivity : ComponentActivity() {
         setContent {
             BitTheme {
                 val calls by CallManager.calls.collectAsState()
-                val primary = calls.firstOrNull { it.state != Call.STATE_DISCONNECTED }
+                val primary = CallManager.focus(calls)
+                val other = primary?.let { p -> calls.firstOrNull { it.call != p.call && it.state != Call.STATE_DISCONNECTED } }
                 // Keep the last call on screen for a moment so "CALL ENDED · 4:12" is visible.
                 var last by remember { mutableStateOf<CallUi?>(null) }
                 if (primary != null) last = primary
                 LaunchedEffect(primary == null) { if (primary == null) { delay(1500); finish() } }
                 val shown = primary ?: last?.copy(state = Call.STATE_DISCONNECTED)
-                if (shown != null) InCallScreen(shown)
+                if (shown != null) InCallScreen(shown, other)
             }
         }
     }
@@ -99,7 +100,7 @@ class InCallActivity : ComponentActivity() {
 private enum class Panel { NONE, KEYPAD, NOTES, CUE, REPLY }
 
 @Composable
-private fun InCallScreen(ui: CallUi) {
+private fun InCallScreen(ui: CallUi, other: CallUi?) {
     val p = LocalPalette.current
     val s = LocalBitSettings.current
     val context = LocalContext.current
@@ -185,7 +186,25 @@ private fun InCallScreen(ui: CallUi) {
             }
         }
 
+        // Two calls: who the other one is, and a way to switch between them.
+        other?.let { o ->
+            val who = o.name ?: Phone.pretty(o.number)
+            Banner(
+                when {
+                    ringing -> "📞 YOU'RE ON A CALL WITH $who · ANSWER PUTS THEM ON HOLD"
+                    o.state == Call.STATE_HOLDING -> "⏸ ON HOLD: $who · TAP TO SWAP"
+                    else -> "📞 ALSO ON THE LINE: $who"
+                },
+                if (ringing) p.surface2 else p.accent,
+            ) { if (!ringing) CallManager.swap() }
+        }
+
         if (ringing) {
+            if (other != null) Row(Modifier.padding(bottom = 10.dp)) {
+                PixelButton(p.surface2, Modifier.fillMaxWidth(), onClick = { CallManager.endAndAnswer() }) {
+                    Text("☎ END CURRENT CALL & ANSWER", style = px(10, p.text), modifier = Modifier.padding(16.dp))
+                }
+            }
             // Big, easy targets: half the screen width each, so they're findable in the dark.
             Row(Modifier.padding(bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 PixelChip("💬 REPLY", panel == Panel.REPLY) { panel = if (panel == Panel.REPLY) Panel.NONE else Panel.REPLY }

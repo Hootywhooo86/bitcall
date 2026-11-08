@@ -57,8 +57,14 @@ object CallNotifications {
         return CH_FAVORITE
     }
 
+    private var shownRinging = false
+
     fun show(context: Context, ui: CallUi) {
         val ringing = ui.state == Call.STATE_RINGING
+        // A second call while you're on one: clear the "ongoing call" notification first, so the
+        // ringing one pops up fresh (heads-up, and full screen when the phone is locked).
+        if (ringing && !shownRinging) context.getSystemService(NotificationManager::class.java).cancel(ID_CALL)
+        shownRinging = ringing
         val who = (if (ui.enemy) "👾 " else "") + (ui.name ?: Phone.pretty(ui.number))
         val channel = when {
             !ringing -> CH_ONGOING
@@ -111,6 +117,7 @@ object CallNotifications {
     }
 
     fun cancel(context: Context) {
+        shownRinging = false
         context.getSystemService(NotificationManager::class.java).run { cancel(ID_CALL); cancel(ID_ASSIST) }
     }
 }

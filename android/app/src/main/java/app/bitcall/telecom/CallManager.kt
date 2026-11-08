@@ -62,7 +62,26 @@ object CallManager {
     private val decisions = HashMap<Call, CallPolicy.Decision>()
     private var transcriber: Transcriber? = null
 
-    val primary: CallUi? get() = _calls.value.firstOrNull { it.state != Call.STATE_DISCONNECTED }
+    /** The call the screen, notification and buttons are about: a ringing call first, so a second call can be answered. */
+    val primary: CallUi? get() = focus(_calls.value)
+
+    /** The other call during call waiting (the one you're on) or after swapping (the one on hold). */
+    val other: CallUi? get() = primary?.let { p -> _calls.value.firstOrNull { it.call != p.call && it.state != Call.STATE_DISCONNECTED } }
+
+    fun focus(calls: List<CallUi>): CallUi? = focusIndex(calls.map { it.state })?.let { calls[it] }
+
+    /** Which call gets the screen: ringing > talking > dialing > on hold. Pure, so it's unit-tested. */
+    fun focusIndex(states: List<Int>): Int? {
+        fun rank(s: Int) = when (s) {
+            Call.STATE_RINGING -> 0
+            Call.STATE_ACTIVE -> 1
+            Call.STATE_DIALING, Call.STATE_CONNECTING, Call.STATE_NEW, Call.STATE_SELECT_PHONE_ACCOUNT, Call.STATE_PULLING_CALL -> 2
+            Call.STATE_HOLDING -> 3
+            Call.STATE_DISCONNECTED -> 99
+            else -> 4
+        }
+        return states.indices.filter { states[it] != Call.STATE_DISCONNECTED }.minByOrNull { rank(states[it]) }
+    }
 
     private val callback = object : Call.Callback() {
         override fun onStateChanged(call: Call, state: Int) = onChanged(call)
@@ -104,7 +123,13 @@ object CallManager {
 
     private fun startRinging(call: Call) {
         if (!ringing.add(call)) return
-        Ringer.start(app, decisions[call] ?: return, sessions[call]?.starred == true)
+        // Call waiting: you're already on a call, so beep in your ear and buzz instead of the ringtone.
+        val busy = sessions.keys.any { it != call && it.state in setOf(Call.STATE_ACTIVE, Call.STATE_HOLDING, Call.STATE_DIALING) }
+        val d = decisions[call] ?: return
+        if (busy && !d.silence && !d.reject) {
+            CallTrace.note("call waiting: another call is in progress")
+            Ringer.callWaiting(app)
+        } else Ringer.start(app, d, sessions[call]?.starred == true)
         if (sessions[call]?.starred == true && Settings.now.dndAllowFavorites) {
             val nm = app.getSystemService(android.app.NotificationManager::class.java)
             CallTrace.note(
@@ -132,7 +157,7 @@ object CallManager {
         if (call.state == Call.STATE_RINGING) startRinging(call)
         else if (call in ringing) {
             ringing.remove(call)
-            Ringer.stop()
+            if (ringing.isEmpty()) Ringer.stop()
             CallTrace.note(when (call.state) {
                 Call.STATE_ACTIVE -> "answered"
                 Call.STATE_DISCONNECTED -> "ended before it was answered"
@@ -169,7 +194,19 @@ object CallManager {
 
     // --- controls ---------------------------------------------------------------------------
 
+    /** Answers the ringing call. If you're on another call, Android puts that one on hold. */
     fun answer() { primary?.call?.answer(VideoProfile.STATE_AUDIO_ONLY); Ringer.stop() }
+
+    /** Call waiting: hang up the call you're on, then answer the new one. */
+    fun endAndAnswer() {
+        val ringingCall = primary?.call?.takeIf { it.state == Call.STATE_RINGING } ?: return
+        other?.call?.disconnect()
+        ringingCall.answer(VideoProfile.STATE_AUDIO_ONLY)
+        Ringer.stop()
+    }
+
+    /** Two calls, one on hold: switch which one you're talking to. */
+    fun swap() { other?.call?.takeIf { it.state == Call.STATE_HOLDING }?.unhold() }
     fun hangup() { primary?.call?.let { if (it.state == Call.STATE_RINGING) it.reject(false, null) else it.disconnect() } }
     fun declineWithText(text: String) { primary?.call?.reject(true, text); Ringer.stop() }
     fun silence() = Ringer.stop()
