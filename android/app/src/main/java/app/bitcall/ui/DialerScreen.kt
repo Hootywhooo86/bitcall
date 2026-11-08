@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -30,7 +31,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -66,6 +69,7 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
     val haptic = LocalHapticFeedback.current
     val clipboard = LocalClipboardManager.current
     var speedDialFor by remember { mutableStateOf<Int?>(null) }
+    var pressedKey by remember { mutableStateOf<Pair<Int, Long>?>(null) }
     var adding by remember { mutableStateOf(false) }
 
     // T9 smart search: typed digits match names (2=ABC...) or numbers.
@@ -78,7 +82,7 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.Bottom) {
             items(matches, key = { it.id }) { c ->
                 Row(
-                    Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(bitShape(12.dp)).background(p.surface)
+                    Modifier.animateItem().fillMaxWidth().padding(vertical = 4.dp).clip(bitShape(12.dp)).background(p.surface)
                         .clickable { Phone.call(context, c.primary) }.padding(horizontal = 10.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -101,11 +105,17 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
             // Pixel font glyphs are 1em wide, so the number shrinks only as far as it must to fit.
             BoxWithConstraints(Modifier.weight(1f)) {
             val fit = (maxWidth.value / digits.length.coerceAtLeast(1) / s.textScale).toInt()
-            Text(
-                digits.ifEmpty { "ENTER A NUMBER" },
-                style = if (digits.isEmpty()) px(9, p.dim) else px(minOf(big(19), fit), p.digits, glow = p.digits),
-                textAlign = TextAlign.Center, maxLines = 1,
-                modifier = Modifier.fillMaxWidth().combinedClickable(
+            // Each new digit bounces up into place from below, in pixel steps.
+            var bounce by remember { mutableIntStateOf(0) }
+            var lastLen by remember { mutableIntStateOf(digits.length) }
+            LaunchedEffect(digits.length) {
+                val grew = digits.length > lastLen
+                lastLen = digits.length
+                if (grew && animOn) for (y in listOf(22, 12, 4, -4, 0)) { bounce = y; kotlinx.coroutines.delay(30) }
+            }
+            val style = if (digits.isEmpty()) px(9, p.dim) else px(minOf(big(19), fit), p.digits, glow = p.digits)
+            Row(
+                Modifier.fillMaxWidth().combinedClickable(
                     onClick = { setDigits("") },
                     onLongClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -117,7 +127,14 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
                         }
                     },
                 ),
-            )
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                if (digits.isEmpty()) Text("ENTER A NUMBER", style = style, maxLines = 1)
+                else {
+                    Text(digits.dropLast(1), style = style, maxLines = 1, softWrap = false)
+                    Text(digits.takeLast(1), style = style, maxLines = 1, softWrap = false, modifier = Modifier.offset(y = bounce.dp))
+                }
+            }
             }
             IconButton(onClick = { setDigits(digits.dropLast(1)) }, enabled = digits.isNotEmpty()) {
                 Icon(Icons.AutoMirrored.Filled.Backspace, "Delete", tint = if (digits.isNotEmpty()) p.dim else p.bg)
@@ -146,12 +163,18 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
                                 }
                             },
                             onClick = {
+                                pressedKey = index to System.nanoTime()
                                 if (s.haptics) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 if (s.keySounds) ChipSound.keyBlip(index)
                                 if (digits.length < 24) setDigits(digits + d)
                             },
                         ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            // The pressed key's digit jumps up for a moment.
+                            var jump by remember { mutableIntStateOf(0) }
+                            LaunchedEffect(pressedKey) {
+                                if (pressedKey?.first == index && animFull) for (y in listOf(-6, -9, -5, 0)) { jump = y; kotlinx.coroutines.delay(35) }
+                            }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.offset(y = jump.dp)) {
                                 Text(d, style = px(big(16), onColor(color)))
                                 val speed = s.speedDial[digit - '0']
                                 if (s.keyLetters || speed != null) Text(

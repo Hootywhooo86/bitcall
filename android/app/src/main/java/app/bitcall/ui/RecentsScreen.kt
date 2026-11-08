@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -234,15 +235,27 @@ private fun play(context: Context, uri: Uri, onDone: () -> Unit): MediaPlayer? =
 @Composable
 private fun XpCard(stats: app.bitcall.data.CallStats) {
     val p = LocalPalette.current
+    val s = LocalBitSettings.current
     var open by remember { mutableStateOf(false) }
+    // The XP bar fills up in ten chunky steps when you open Recents.
+    var shownSteps by remember { mutableStateOf(if (animFull) 0 else 10) }
+    LaunchedEffect(stats.levelProgress) { if (animFull) for (i in 0..10) { shownSteps = i; kotlinx.coroutines.delay(40) } else shownSteps = 10 }
+    // LEVEL UP: confetti and a banner the first time you see a new level.
+    var party by remember { mutableStateOf(0) }
+    LaunchedEffect(stats.level) {
+        if (s.lastLevel in 1 until stats.level) { party++; app.bitcall.assist.ChipSound.powerUp() }
+        if (s.lastLevel != stats.level) Settings.update { it.copy(lastLevel = stats.level) }
+    }
+    Box {
     Card(Modifier.fillMaxWidth().padding(top = 4.dp).clickable { open = !open }) {
+        if (party > 0) Text("★ LEVEL UP! ★", style = px(11, p.good, glow = p.good), modifier = Modifier.padding(bottom = 8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("LV ${stats.level}", style = px(14, p.accent, glow = p.accent))
             Text("  ${stats.xp} XP", style = px(9, p.text), modifier = Modifier.weight(1f))
             if (stats.streakDays > 0) Text("🔥${stats.streakDays}", style = px(10, p.text))
         }
         Box(Modifier.padding(top = 10.dp).fillMaxWidth().height(12.dp).clip(bitShape(3.dp)).background(p.surface2)) {
-            Box(Modifier.fillMaxHeight().fillMaxWidth(stats.levelProgress.coerceIn(0.02f, 1f)).background(p.good))
+            Box(Modifier.fillMaxHeight().fillMaxWidth((stats.levelProgress * shownSteps / 10f).coerceIn(0.02f, 1f)).background(p.good))
         }
         if (open) {
             Text(
@@ -253,6 +266,8 @@ private fun XpCard(stats: app.bitcall.data.CallStats) {
                 stats.badges.forEach { Text(it, style = px(7, p.text), modifier = Modifier.padding(vertical = 4.dp).clip(bitShape(4.dp)).background(p.surface2).padding(6.dp)) }
             }
         }
+    }
+    Confetti(party, listOf(p.good, p.accent, p.bad, Color(0xFFFFD60A), Color.White), Modifier.matchParentSize())
     }
 }
 

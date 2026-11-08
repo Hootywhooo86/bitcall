@@ -197,6 +197,7 @@ fun BitTheme(content: @Composable () -> Unit) {
     textScaleState.floatValue = s.textScale
     cornerState.value = s.corners
     cardScaleState.floatValue = cardScale(s.cardSize)
+    setAnimLevel(s.animations)
     val scheme = if (p.dark) darkColorScheme(
         primary = p.accent, onPrimary = onColor(p.accent), background = p.bg, onBackground = p.text,
         surface = p.surface, onSurface = p.text, surfaceVariant = p.surface2, onSurfaceVariant = p.dim,
@@ -216,7 +217,10 @@ fun BitTheme(content: @Composable () -> Unit) {
     )
     CompositionLocalProvider(LocalPalette provides p, LocalBitSettings provides s) {
         MaterialTheme(colorScheme = scheme, typography = pixel) {
-            Box(Modifier.fillMaxSize().background(p.bg).crt(s.crt && p.dark, p.accent)) { content() }
+            Box(Modifier.fillMaxSize().background(p.bg).crt(s.crt && p.dark, p.accent)) {
+                if (s.starfield && animOn) Starfield(p.text, Modifier.fillMaxSize())
+                content()
+            }
         }
     }
 }

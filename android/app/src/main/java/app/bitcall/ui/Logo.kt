@@ -56,7 +56,8 @@ val LOGO = listOf(
 )
 
 @Composable
-fun PixelLogo(size: Dp, modifier: Modifier = Modifier) {
+/** [waves] 0..3 lights up that many sound waves (the boot screen counts them up). */
+fun PixelLogo(size: Dp, modifier: Modifier = Modifier, waves: Int = 3) {
     val p = LocalPalette.current
     val body = p.logo
     val colors = mapOf(
@@ -74,6 +75,7 @@ fun PixelLogo(size: Dp, modifier: Modifier = Modifier) {
         LOGO.forEachIndexed { y, row ->
             row.forEachIndexed { x, ch ->
                 // +0.5px overlap so neighbouring cells never show a hairline gap between them.
+                if (ch in "ABC" && ch - 'A' >= waves) return@forEachIndexed
                 colors[ch]?.let { drawRect(it, Offset(x * cell, y * cell), Size(cell + 0.5f, cell + 0.5f)) }
             }
         }

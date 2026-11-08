@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -120,7 +121,14 @@ class MainActivity : ComponentActivity() {
         handle(intent)
         if (!isDefaultDialer()) requestDefaultDialer()
         else if (permissions.any { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }) askPermissions.launch(permissions)
-        setContent { BitTheme { Home(this, incomingDial) } }
+        setContent {
+            BitTheme {
+                Box {
+                    Home(this@MainActivity, incomingDial)
+                    BootSplashOncePerDay()
+                }
+            }
+        }
     }
 
     /** Leaving Bitcall (home, back, swiping it away) clears the keypad; going to a call keeps it. */
@@ -138,6 +146,18 @@ class MainActivity : ComponentActivity() {
     private fun handle(intent: Intent?) {
         val data = intent?.data ?: return
         if (data.scheme == "tel") incomingDial.value = data.schemeSpecificPart
+    }
+}
+
+/** The logo boot screen, at most once a day (and never when opening Bitcall to dial a number). */
+@Composable
+private fun BootSplashOncePerDay() {
+    val s = LocalBitSettings.current
+    val today = System.currentTimeMillis() / 86_400_000L
+    var show by remember { mutableStateOf(s.bootSplash && animOn && s.lastSplashDay != today) }
+    if (show) BootSplash {
+        show = false
+        app.bitcall.data.Settings.update { it.copy(lastSplashDay = today) }
     }
 }
 
@@ -254,7 +274,12 @@ fun Home(activity: MainActivity, incomingDial: MutableStateFlow<String?>) {
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Box(Modifier.size(width = 36.dp, height = 4.dp).background(if (sel) p.tabActive else Color.Transparent))
-                    Icon(t.icon, t.label, tint = if (sel) p.tabActive else p.dim, modifier = Modifier.padding(top = 6.dp).size(26.dp))
+                    // The selected tab's icon hops once, in two pixel steps.
+                    val hop = remember { androidx.compose.animation.core.Animatable(0f) }
+                    LaunchedEffect(sel) {
+                        if (sel && animFull) for (y in listOf(-6f, -10f, -6f, 0f)) { hop.snapTo(y); kotlinx.coroutines.delay(55) }
+                    }
+                    Icon(t.icon, t.label, tint = if (sel) p.tabActive else p.dim, modifier = Modifier.padding(top = 6.dp).offset(y = hop.value.dp).size(26.dp))
                     Text(t.label, style = px(7, if (sel) p.tabActive else p.dim), modifier = Modifier.padding(top = 4.dp))
                 }
             }

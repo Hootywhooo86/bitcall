@@ -20,6 +20,12 @@ data class BitSettings(
     val textScale: Float = 1f,
     val keyLetters: Boolean = true,
     val haptics: Boolean = true,
+    val animations: String = "FULL", // FULL | LESS | OFF
+    val starfield: Boolean = false,  // drifting pixel stars behind the app
+    val bootSplash: Boolean = true,  // the logo boot screen, once a day
+    val bitterOnCalls: Boolean = true, // Bitter peeks in on the call screen
+    val lastSplashDay: Long = 0L,
+    val lastLevel: Int = 0,          // for the LEVEL UP celebration
     val keySounds: Boolean = true,
     val chipRingtone: Boolean = true,
     // Call Assist
@@ -91,6 +97,12 @@ object Settings {
             textScale = prefs.getFloat("textScale", d.textScale),
             keyLetters = prefs.getBoolean("keyLetters", d.keyLetters),
             haptics = prefs.getBoolean("haptics", d.haptics),
+            animations = prefs.getString("animations", d.animations)!!,
+            starfield = prefs.getBoolean("starfield", d.starfield),
+            bootSplash = prefs.getBoolean("bootSplash", d.bootSplash),
+            bitterOnCalls = prefs.getBoolean("bitterOnCalls", d.bitterOnCalls),
+            lastSplashDay = prefs.getLong("lastSplashDay", d.lastSplashDay),
+            lastLevel = prefs.getInt("lastLevel", d.lastLevel),
             keySounds = prefs.getBoolean("keySounds", d.keySounds),
             chipRingtone = prefs.getBoolean("chipRingtone", d.chipRingtone),
             rejectSpam = prefs.getBoolean("rejectSpam", d.rejectSpam),
@@ -132,6 +144,12 @@ object Settings {
             .putFloat("textScale", s.textScale)
             .putBoolean("keyLetters", s.keyLetters)
             .putBoolean("haptics", s.haptics)
+            .putString("animations", s.animations)
+            .putBoolean("starfield", s.starfield)
+            .putBoolean("bootSplash", s.bootSplash)
+            .putBoolean("bitterOnCalls", s.bitterOnCalls)
+            .putLong("lastSplashDay", s.lastSplashDay)
+            .putInt("lastLevel", s.lastLevel)
             .putBoolean("keySounds", s.keySounds)
             .putBoolean("chipRingtone", s.chipRingtone)
             .putBoolean("rejectSpam", s.rejectSpam)

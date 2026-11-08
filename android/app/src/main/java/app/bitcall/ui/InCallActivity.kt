@@ -54,6 +54,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -89,9 +90,26 @@ class InCallActivity : ComponentActivity() {
                 // Keep the last call on screen for a moment so "CALL ENDED · 4:12" is visible.
                 var last by remember { mutableStateOf<CallUi?>(null) }
                 if (primary != null) last = primary
-                LaunchedEffect(primary == null) { if (primary == null) { delay(1500); finish() } }
+                // Ended: "GAME OVER · 4:12" for a moment, then the old-TV switch-off.
+                var crt by remember { mutableStateOf(0f) }
+                LaunchedEffect(primary == null) {
+                    if (primary != null) { crt = 0f; return@LaunchedEffect }
+                    if (animFull) {
+                        delay(900)
+                        for (i in 1..14) { crt = i / 14f; delay(50) }
+                    } else delay(1500)
+                    finish()
+                }
                 val shown = primary ?: last?.copy(state = Call.STATE_DISCONNECTED)
-                if (shown != null) InCallScreen(shown, other)
+                val (sx, sy) = crtOffScale(crt)
+                Box(Modifier.fillMaxSize()) {
+                    Box(Modifier.fillMaxSize().graphicsLayer { scaleX = sx; scaleY = sy }) {
+                        if (shown != null) InCallScreen(shown, other)
+                        // The squashed picture glows white, like a CRT's last line of light.
+                        if (crt > 0f) Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = (crt * 2f).coerceAtMost(1f))))
+                    }
+                    if (shown != null && LocalBitSettings.current.bitterOnCalls && animOn && crt == 0f) BitterPeek(shown, Modifier.align(Alignment.TopEnd))
+                }
             }
         }
     }
@@ -109,6 +127,15 @@ private fun InCallScreen(ui: CallUi, other: CallUi?) {
     val hold by CallManager.hold.collectAsState()
     var panel by remember { mutableStateOf(Panel.NONE) }
     val ringing = ui.state == Call.STATE_RINGING
+    // Answered: a 1-UP burst of pixel stars around the caller.
+    var burst by remember { mutableStateOf(0) }
+    var before by remember { mutableStateOf(ui.state) }
+    LaunchedEffect(ui.state) {
+        if (ui.state == Call.STATE_ACTIVE && before in setOf(Call.STATE_RINGING, Call.STATE_DIALING, Call.STATE_CONNECTING)) burst++
+        before = ui.state
+    }
+    // Spam: the screen flickers red like a boss-fight warning.
+    val flicker = frameTick(4, ui.enemy && ringing && animFull) % 2 == 1
     // Keep the screen lit while it rings, so the buttons don't vanish before you can grab the phone.
     val view = androidx.compose.ui.platform.LocalView.current
     DisposableEffect(ringing) {
@@ -128,7 +155,8 @@ private fun InCallScreen(ui: CallUi, other: CallUi?) {
     val hasContent = panel != Panel.NONE || showTranscript
 
     Column(
-        Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 16.dp),
+        Modifier.fillMaxSize().background(if (flicker) p.bad.copy(alpha = 0.12f) else Color.Transparent)
+            .statusBarsPadding().navigationBarsPadding().padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         val dialing = ui.state in setOf(Call.STATE_DIALING, Call.STATE_CONNECTING, Call.STATE_NEW, Call.STATE_SELECT_PHONE_ACCOUNT)
@@ -144,13 +172,15 @@ private fun InCallScreen(ui: CallUi, other: CallUi?) {
         )
         if (!hasContent) Spacer(Modifier.weight(1f))
         Spacer(Modifier.height(8.dp))
-        RingingAvatar(ui, active = ringing || dialing, size = if (hasContent) avatarSize(72.dp) else avatarSize(140.dp))
+        RingingAvatar(ui, active = ringing || dialing, ringing = ringing, burst = burst, size = if (hasContent) avatarSize(72.dp) else avatarSize(140.dp))
         Spacer(Modifier.height(12.dp))
         Text(ui.name ?: Phone.pretty(ui.number), style = px(if (hasContent) 16 else 20, p.text, glow = p.accent), textAlign = TextAlign.Center)
         if (ui.name != null) Text(Phone.pretty(ui.number), style = px(11, p.dim), modifier = Modifier.padding(top = 8.dp))
-        if (ui.enemy) Row(Modifier.padding(top = 10.dp)) { EnemyBadge(); Text("  BOSS LEVEL: POSSIBLE SPAM", style = px(8, p.bad)) }
+        if (ui.enemy && ringing && animFull) BossMarquee(p.bad)
+        else if (ui.enemy) Row(Modifier.padding(top = 10.dp)) { EnemyBadge(); Text("  BOSS LEVEL: POSSIBLE SPAM", style = px(8, p.bad)) }
         ui.policyNote?.let { Text(it, style = px(8, p.dim), modifier = Modifier.padding(top = 6.dp)) }
         Text(statusText(ui) + if (dialing) dots() else "", style = px(12, p.accent), modifier = Modifier.padding(top = 10.dp))
+        if (dialing && animOn) LoadingBlocks(p.accent, p.surface2)
         if (recording) Text("● REC", style = px(10, p.bad), modifier = Modifier.padding(top = 8.dp))
 
         when (hold) {
@@ -212,7 +242,7 @@ private fun InCallScreen(ui: CallUi, other: CallUi?) {
             }
             Row(Modifier.fillMaxWidth().padding(bottom = 24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 BigAction(p.hangup, Icons.Filled.CallEnd, "DECLINE", Modifier.weight(1f)) { CallManager.hangup() }
-                BigAction(p.call, Icons.Filled.Call, "ANSWER", Modifier.weight(1f)) { CallManager.answer() }
+                BigAction(p.call, Icons.Filled.Call, "ANSWER", Modifier.weight(1f), hint = animOn) { CallManager.answer() }
             }
         } else if (ui.state != Call.STATE_DISCONNECTED) {
             val grid = buildList<Triple<String, Boolean, () -> Unit>> {
@@ -267,7 +297,7 @@ private fun statusText(ui: CallUi): String {
         Call.STATE_DIALING, Call.STATE_CONNECTING, Call.STATE_NEW -> "CALLING"
         Call.STATE_HOLDING -> "ON HOLD"
         Call.STATE_DISCONNECTING, Call.STATE_DISCONNECTED ->
-            "CALL ENDED" + if (ui.connectTime > 0) " · " + DateUtils.formatElapsedTime((now - ui.connectTime) / 1000) else ""
+            (if (animFull) "GAME OVER" else "CALL ENDED") + if (ui.connectTime > 0) " · " + DateUtils.formatElapsedTime((now - ui.connectTime) / 1000) else ""
         Call.STATE_ACTIVE -> if (ui.connectTime > 0) DateUtils.formatElapsedTime((now - ui.connectTime).coerceAtLeast(0) / 1000) else "CONNECTED"
         else -> ""
     }
@@ -282,9 +312,10 @@ private fun Banner(text: String, color: Color, onClick: () -> Unit) {
 }
 
 @Composable
-private fun BigAction(color: Color, icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, modifier: Modifier, onClick: () -> Unit) {
+private fun BigAction(color: Color, icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, modifier: Modifier, hint: Boolean = false, onClick: () -> Unit) {
     PixelButton(color, modifier.height(128.dp), onClick = onClick) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (hint) SlideHint(onColor(color))
             Icon(icon, label, tint = onColor(color), modifier = Modifier.size(52.dp))
             Text(label, style = px(12, onColor(color)), modifier = Modifier.padding(top = 8.dp))
         }
@@ -354,22 +385,50 @@ private fun CuePanel(number: String) {
 
 /** Avatar with expanding pixel rings while a call is ringing in or out. */
 @Composable
-private fun RingingAvatar(ui: CallUi, active: Boolean, size: androidx.compose.ui.unit.Dp) {
+private fun RingingAvatar(ui: CallUi, active: Boolean, ringing: Boolean, burst: Int, size: androidx.compose.ui.unit.Dp) {
     val p = LocalPalette.current
-    val t = rememberInfiniteTransition(label = "ring")
-    val pulse by t.animateFloat(0f, 1f, infiniteRepeatable(tween(1400, easing = LinearEasing)), label = "pulse")
     val ringColor = if (ui.enemy) p.bad else p.accent
+    // Ring waves step outward in 8 sizes (no smooth blur), two waves half a cycle apart.
+    val t = frameTick(8, active)
     Box(Modifier.size(size * 1.45f), contentAlignment = Alignment.Center) {
-        if (active) {
-            listOf(0f, 0.5f).forEach { offset ->
-                val f = (pulse + offset) % 1f
+        if (active && animOn) {
+            listOf(0, 4).forEach { offset ->
+                val step = (t + offset) % 8
                 Box(
-                    Modifier.size(size + size * 0.45f * f).alpha(1f - f)
+                    Modifier.size(size + size * 0.06f * step).alpha(1f - step / 8f)
                         .border(4.dp, ringColor, bitShape(18.dp)),
                 )
             }
         }
-        PixelAvatar(ui.name ?: ui.number, ui.photoUri, size, ui.enemy)
+        // The caller's picture shakes like an old cartoon phone while it rings.
+        Box(Modifier.ringShake(ringing)) { PixelAvatar(ui.name ?: ui.number, ui.photoUri, size, ui.enemy) }
+        if (ui.starred && active) Sparkles(size * 1.45f)
+        PixelBurst(burst, size * 1.45f, listOf(p.good, p.accent, Color.White, Color(0xFFFFD60A)))
+    }
+}
+
+/** Bitter peeks in from the corner with a one-line comment on what the call is doing. */
+@Composable
+private fun BitterPeek(ui: CallUi, modifier: Modifier) {
+    val p = LocalPalette.current
+    val audio by CallManager.audio.collectAsState()
+    var hello by remember { mutableStateOf(false) }
+    LaunchedEffect(ui.state) {
+        if (ui.state == Call.STATE_ACTIVE) { hello = true; delay(3000); hello = false }
+    }
+    val (mood, say) = when {
+        ui.state == Call.STATE_RINGING && ui.enemy -> BitterMood.THINKING to "SUS…"
+        ui.state == Call.STATE_RINGING -> BitterMood.THINKING to "WHO IS IT?"
+        ui.state in setOf(Call.STATE_DIALING, Call.STATE_CONNECTING) -> BitterMood.TALKING to "RING RING!"
+        ui.state == Call.STATE_HOLDING -> BitterMood.IDLE to "⏸ ON HOLD"
+        ui.state == Call.STATE_DISCONNECTED -> BitterMood.TALKING to "BYE!"
+        audio.muted -> BitterMood.IDLE to "SHHH 🤫"
+        hello -> BitterMood.TALKING to "HI! 👋"
+        else -> BitterMood.IDLE to null
+    }
+    Row(modifier.statusBarsPadding().padding(top = 44.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        say?.let { Text(it, style = px(7, p.text), modifier = Modifier.clip(bitShape(6.dp)).background(p.surface2).padding(horizontal = 8.dp, vertical = 6.dp)) }
+        BitterSprite(48.dp, mood)
     }
 }
 

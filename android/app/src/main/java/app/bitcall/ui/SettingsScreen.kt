@@ -367,6 +367,10 @@ private fun ThemeEditor() {
     ChoiceRow("TEXT SIZE", listOf(0.85f to "S", 1f to "M", 1.15f to "L", 1.3f to "XL").map { it.first.toString() to it.second }, s.textScale.toString()) { v ->
         Settings.update { it.copy(textScale = v.toFloat()) }
     }
+    ChoiceRow("ANIMATIONS", listOf("FULL" to "✨ FULL", "LESS" to "LESS", "OFF" to "OFF"), s.animations) { v -> Settings.update { it.copy(animations = v) } }
+    Toggle("Boot screen", "The BITCALL logo boot-up, once a day", s.bootSplash) { b, v -> b.copy(bootSplash = v) }
+    Toggle("Starfield", "Pixel stars drifting behind everything (uses a little battery)", s.starfield) { b, v -> b.copy(starfield = v) }
+    Toggle("Bitter on calls", "Bitter peeks in on the call screen", s.bitterOnCalls) { b, v -> b.copy(bitterOnCalls = v) }
     Toggle("CRT glow", "Scanlines and phosphor glow (dark palettes)", s.crt) { b, v -> b.copy(crt = v) }
     Toggle("Letters on keys", "ABC, DEF… under each digit", s.keyLetters) { b, v -> b.copy(keyLetters = v) }
     Toggle("Key vibration", "A tiny buzz on every key press", s.haptics) { b, v -> b.copy(haptics = v) }
