@@ -24,6 +24,9 @@ object RingPlan {
     const val RINGTONE = 1
     const val ALARM = 2
 
+    /** Whether a call will make sound or show at all under the current phone DND. */
+    fun willRing(filter: Int, breaksDnd: Boolean): Boolean = decide(filter, breaksDnd, true) != SILENT
+
     fun decide(filter: Int, starred: Boolean, allowFavorites: Boolean): Int = when {
         filter == NotificationManager.INTERRUPTION_FILTER_ALL || filter == NotificationManager.INTERRUPTION_FILTER_UNKNOWN -> RINGTONE
         starred && allowFavorites -> ALARM
@@ -54,7 +57,8 @@ object Ringer {
     private var vibrator: Vibrator? = null
     private val main = Handler(Looper.getMainLooper())
 
-    fun start(context: Context, decision: CallPolicy.Decision, starred: Boolean) {
+    /** [starred] is unused now: [CallPolicy.Decision.breaksDnd] says who rings through DND. */
+    fun start(context: Context, decision: CallPolicy.Decision, @Suppress("UNUSED_PARAMETER") starred: Boolean) {
         stop()
         if (decision.silence || decision.reject) {
             CallTrace.note("not ringing: ${decision.reason ?: "silenced by bitcall"}")
@@ -63,8 +67,8 @@ object Ringer {
         val audio = context.getSystemService(AudioManager::class.java)
         val nm = context.getSystemService(NotificationManager::class.java)
         val filter = nm.currentInterruptionFilter
-        val plan = RingPlan.decide(filter, starred, Settings.now.dndAllowFavorites)
-        CallTrace.note("phone DND ${RingPlan.filterName(filter)} · favorite=$starred · let favorites through=${Settings.now.dndAllowFavorites}")
+        val plan = RingPlan.decide(filter, decision.breaksDnd, allowFavorites = true)
+        CallTrace.note("phone DND ${RingPlan.filterName(filter)} · rings through DND=${decision.breaksDnd} (${Settings.now.dndWho.lowercase()}, repeat callers=${Settings.now.dndRepeatCallers})")
         if (plan == RingPlan.SILENT) {
             CallTrace.note("not ringing: phone DND and not a ring-through favorite")
             return

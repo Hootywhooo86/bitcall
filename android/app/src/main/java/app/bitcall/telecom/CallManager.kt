@@ -32,6 +32,7 @@ data class CallUi(
     val connectTime: Long,
     val enemy: Boolean,
     val policyNote: String?,
+    val breaksDnd: Boolean = false,
 )
 
 data class AudioUi(val muted: Boolean = false, val speaker: Boolean = false)
@@ -121,6 +122,18 @@ object CallManager {
 
     private val ringing = HashSet<Call>()
 
+    /**
+     * Whether a ringing call should take over the screen: not blocked or silenced by bitcall, and
+     * either phone DND is off or the caller is allowed through it. DND never blocks the call screen
+     * itself, so callers who get through always see it, and silenced callers never wake the phone.
+     */
+    fun shouldPopUp(call: Call): Boolean {
+        val d = decisions[call] ?: return false
+        if (d.reject || d.silence) return false
+        val filter = app.getSystemService(android.app.NotificationManager::class.java).currentInterruptionFilter
+        return RingPlan.willRing(filter, d.breaksDnd)
+    }
+
     private fun startRinging(call: Call) {
         if (!ringing.add(call)) return
         // Call waiting: you're already on a call, so beep in your ear and buzz instead of the ringtone.
@@ -130,7 +143,7 @@ object CallManager {
             CallTrace.note("call waiting: another call is in progress")
             Ringer.callWaiting(app)
         } else Ringer.start(app, d, sessions[call]?.starred == true)
-        if (sessions[call]?.starred == true && Settings.now.dndAllowFavorites) {
+        if (decisions[call]?.breaksDnd == true) {
             val nm = app.getSystemService(android.app.NotificationManager::class.java)
             CallTrace.note(
                 "call screen: shows over DND=${nm.getNotificationChannel(CallNotifications.CH_FAVORITE)?.canBypassDnd() == true} · " +
@@ -179,6 +192,7 @@ object CallManager {
                 call = c, number = s.number, name = s.name, photoUri = s.photoUri, starred = s.starred,
                 state = c.state, incoming = c.details.callDirection == Call.Details.DIRECTION_INCOMING,
                 connectTime = c.details.connectTimeMillis, enemy = d?.enemy == true, policyNote = d?.reason,
+                breaksDnd = d?.breaksDnd == true,
             )
         }
         session.value = primary?.let { sessions[it.call] }

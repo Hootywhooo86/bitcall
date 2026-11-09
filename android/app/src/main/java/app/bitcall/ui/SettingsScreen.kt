@@ -224,9 +224,22 @@ private fun SectionBody(section: Section, onChanged: () -> Unit) {
                     TimePickerDialog(context, { _, h, m -> Settings.update { it.copy(dndEnd = h * 60 + m) } }, s.dndEnd / 60, s.dndEnd % 60, false).show()
                 }
             }
-            Toggle("Let ★ favorites through", "Rings through your phone's own Do Not Disturb, on the alarm sound, even if the ringer is on vibrate", s.dndAllowFavorites) { b, v -> b.copy(dndAllowFavorites = v) }
-            if (s.dndAllowFavorites) DndAccessRow()
-            Info("Silenced calls still show in Recents. Everyone except ★ favorites follows your phone's own Do Not Disturb.")
+            Toggle("Let important calls through", "Ring through your phone's own Do Not Disturb, on the alarm sound, with the full call screen, even if the ringer is on vibrate", s.dndAllowFavorites) { b, v -> b.copy(dndAllowFavorites = v) }
+            if (s.dndAllowFavorites) {
+                Text("WHO GETS THROUGH", style = px(7, p.dim), modifier = Modifier.padding(top = 8.dp))
+                FlowRow(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf("FAVORITES" to "★ FAVORITES", "CONTACTS" to "ALL CONTACTS", "EVERYONE" to "EVERYONE").forEach { (id, label) ->
+                        PixelChip(label, s.dndWho == id) { Settings.update { it.copy(dndWho = id) } }
+                    }
+                }
+            }
+            Toggle("Repeat callers", "Anyone who calls twice within 3 minutes gets through, in case it's urgent", s.dndRepeatCallers) { b, v -> b.copy(dndRepeatCallers = v) }
+            if (s.dndAllowFavorites || s.dndRepeatCallers) DndAccessRow()
+            Info(when (s.dndWho) {
+                "EVERYONE" -> "Every call rings through Do Not Disturb, except 👾 spam. Silenced calls still show in Recents."
+                "CONTACTS" -> "Everyone in your contacts rings through Do Not Disturb. Unknown numbers follow your phone's DND."
+                else -> "★ favorites ring through Do Not Disturb. Everyone else follows your phone's DND."
+            } + if (s.dndRepeatCallers) " Repeat callers get through too." else "")
             RingThroughCheck()
         }
         Section.BLOCKED -> {

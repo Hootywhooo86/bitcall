@@ -68,7 +68,7 @@ object CallNotifications {
         val who = (if (ui.enemy) "👾 " else "") + (ui.name ?: Phone.pretty(ui.number))
         val channel = when {
             !ringing -> CH_ONGOING
-            ui.starred && Settings.now.dndAllowFavorites -> favoriteChannel(context)
+            ui.breaksDnd -> favoriteChannel(context)
             else -> CH_INCOMING
         }
         val b = Notification.Builder(context, channel)

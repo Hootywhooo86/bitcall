@@ -27,7 +27,8 @@ class BitcallInCallService : InCallService() {
         // ourselves, so it wakes the screen and shows over the lock screen with ANSWER / DECLINE.
         // Same for a second call while you're on one (call waiting), so it can't be missed.
         val onAnotherCall = CallManager.calls.value.any { it.call != call && it.state != Call.STATE_DISCONNECTED }
-        if (call.state != Call.STATE_RINGING || phoneAsleepOrLocked() || onAnotherCall) {
+        // Do Not Disturb: callers who get through always pop up; silenced ones never wake the phone.
+        if (call.state != Call.STATE_RINGING || ((phoneAsleepOrLocked() || onAnotherCall) && CallManager.shouldPopUp(call))) {
             runCatching { startActivity(Intent(this, InCallActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
         }
     }

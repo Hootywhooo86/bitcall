@@ -40,7 +40,9 @@ data class BitSettings(
     val dndEnabled: Boolean = false,
     val dndStart: Int = 22 * 60,
     val dndEnd: Int = 7 * 60,
-    val dndAllowFavorites: Boolean = true,
+    val dndAllowFavorites: Boolean = true,      // master switch: let VIP calls through phone DND
+    val dndWho: String = "FAVORITES",           // who counts as VIP: FAVORITES | CONTACTS | EVERYONE (never spam)
+    val dndRepeatCallers: Boolean = true,       // a second call from the same number within 3 min gets through
     // Lists
     val quickReplies: List<String> = DEFAULT_REPLIES,
     val speedDial: Map<Int, String> = emptyMap(), // digit 2..9 -> number
@@ -116,6 +118,8 @@ object Settings {
             dndStart = prefs.getInt("dndStart", d.dndStart),
             dndEnd = prefs.getInt("dndEnd", d.dndEnd),
             dndAllowFavorites = prefs.getBoolean("dndAllowFavorites", d.dndAllowFavorites),
+            dndWho = prefs.getString("dndWho", d.dndWho)!!,
+            dndRepeatCallers = prefs.getBoolean("dndRepeatCallers", d.dndRepeatCallers),
             quickReplies = prefs.getString("quickReplies", null)?.let { j ->
                 JSONArray(j).let { a -> List(a.length()) { a.getString(it) } }
             } ?: d.quickReplies,
@@ -163,6 +167,8 @@ object Settings {
             .putInt("dndStart", s.dndStart)
             .putInt("dndEnd", s.dndEnd)
             .putBoolean("dndAllowFavorites", s.dndAllowFavorites)
+            .putString("dndWho", s.dndWho)
+            .putBoolean("dndRepeatCallers", s.dndRepeatCallers)
             .putString("quickReplies", JSONArray(s.quickReplies).toString())
             .putString("speedDial", JSONObject(s.speedDial.mapKeys { it.key.toString() }).toString())
             .putStringSet("spamNumbers", s.spamNumbers)
