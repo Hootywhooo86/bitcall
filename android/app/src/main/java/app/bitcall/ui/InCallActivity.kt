@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.bitcall.assist.MagicCue
 import app.bitcall.data.Phone
+import app.bitcall.telecom.CallBubble
 import app.bitcall.telecom.CallManager
 import app.bitcall.telecom.CallUi
 import app.bitcall.telecom.HoldState
@@ -71,6 +72,10 @@ import kotlinx.coroutines.delay
 class InCallActivity : ComponentActivity() {
     companion object { const val EXTRA_ANSWER = "answer" }
 
+    // The floating call bubble hides while this screen is showing and comes back when you leave it.
+    override fun onStart() { super.onStart(); CallBubble.callScreenVisible = true }
+    override fun onStop() { CallBubble.callScreenVisible = false; super.onStop() }
+
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         if (intent.getBooleanExtra(EXTRA_ANSWER, false)) CallManager.answer()
@@ -79,6 +84,9 @@ class InCallActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (savedInstanceState == null && intent.getBooleanExtra(EXTRA_ANSWER, false)) CallManager.answer()
+        // Its own card in the app switcher ("☎ Call"), so you can flip between the call and other apps.
+        if (android.os.Build.VERSION.SDK_INT >= 33) setTaskDescription(android.app.ActivityManager.TaskDescription.Builder().setLabel("☎ Call").build())
+        else @Suppress("DEPRECATION") setTaskDescription(android.app.ActivityManager.TaskDescription("☎ Call"))
         setShowWhenLocked(true)
         setTurnScreenOn(true)
         enableEdgeToEdge()
@@ -182,6 +190,10 @@ private fun InCallScreen(ui: CallUi, other: CallUi?) {
         Text(statusText(ui) + if (dialing) dots() else "", style = px(12, p.accent), modifier = Modifier.padding(top = 10.dp))
         if (dialing && animOn) LoadingBlocks(p.accent, p.surface2)
         if (recording) Text("● REC", style = px(10, p.bad), modifier = Modifier.padding(top = 8.dp))
+        // One tap to allow the floating call bubble, so leaving this screen never loses the call.
+        if (ui.state == Call.STATE_ACTIVE && s.callBubble && !CallBubble.canShow(context)) Row(Modifier.padding(top = 8.dp)) {
+            PixelChip("📌 KEEP CALL ON TOP OF APPS", false) { context.startActivity(CallBubble.permissionIntent(context)) }
+        }
 
         when (hold) {
             HoldState.LISTENING -> Banner("⏸ HOLD FOR ME: listening for a person… (you're muted)", p.surface2) { CallManager.stopHoldForMe() }

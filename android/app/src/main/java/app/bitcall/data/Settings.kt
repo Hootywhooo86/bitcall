@@ -24,6 +24,7 @@ data class BitSettings(
     val starfield: Boolean = false,  // drifting pixel stars behind the app
     val bootSplash: Boolean = true,  // the logo boot screen, once a day
     val bitterOnCalls: Boolean = true, // Bitter peeks in on the call screen
+    val callBubble: Boolean = true,    // floating "return to call" bubble over other apps
     val lastSplashDay: Long = 0L,
     val lastLevel: Int = 0,          // for the LEVEL UP celebration
     val keySounds: Boolean = true,
@@ -103,6 +104,7 @@ object Settings {
             starfield = prefs.getBoolean("starfield", d.starfield),
             bootSplash = prefs.getBoolean("bootSplash", d.bootSplash),
             bitterOnCalls = prefs.getBoolean("bitterOnCalls", d.bitterOnCalls),
+            callBubble = prefs.getBoolean("callBubble", d.callBubble),
             lastSplashDay = prefs.getLong("lastSplashDay", d.lastSplashDay),
             lastLevel = prefs.getInt("lastLevel", d.lastLevel),
             keySounds = prefs.getBoolean("keySounds", d.keySounds),
@@ -152,6 +154,7 @@ object Settings {
             .putBoolean("starfield", s.starfield)
             .putBoolean("bootSplash", s.bootSplash)
             .putBoolean("bitterOnCalls", s.bitterOnCalls)
+            .putBoolean("callBubble", s.callBubble)
             .putLong("lastSplashDay", s.lastSplashDay)
             .putInt("lastLevel", s.lastLevel)
             .putBoolean("keySounds", s.keySounds)

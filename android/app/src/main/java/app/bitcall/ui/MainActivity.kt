@@ -149,6 +149,26 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/** During a call: a big green bar at the top of Bitcall that takes you straight back to the call. */
+@Composable
+private fun ReturnToCallBar() {
+    val p = LocalPalette.current
+    val context = LocalContext.current
+    val calls by app.bitcall.telecom.CallManager.calls.collectAsStateWithLifecycle()
+    val call = app.bitcall.telecom.CallManager.focus(calls) ?: return
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(call.call) { while (true) { now = System.currentTimeMillis(); kotlinx.coroutines.delay(1000) } }
+    val time = when {
+        call.state == android.telecom.Call.STATE_HOLDING -> "ON HOLD"
+        call.connectTime > 0 -> android.text.format.DateUtils.formatElapsedTime((now - call.connectTime).coerceAtLeast(0) / 1000)
+        else -> "CALLING…"
+    }
+    PixelButton(p.call, Modifier.padding(horizontal = 12.dp, vertical = 4.dp).fillMaxWidth(), onClick = { app.bitcall.telecom.CallBubble.openCallScreen(context) }) {
+        Text("☎ RETURN TO CALL · ${call.name ?: Phone.pretty(call.number)} · $time", style = px(9, onColor(p.call)), maxLines = 1,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp))
+    }
+}
+
 /** The logo boot screen, at most once a day (and never when opening Bitcall to dial a number). */
 @Composable
 private fun BootSplashOncePerDay() {
@@ -208,6 +228,7 @@ fun Home(activity: MainActivity, incomingDial: MutableStateFlow<String?>) {
             return@Column
         }
         TopBar(contacts.filter { it.starred }, onSettings = { settings = true }, onInfo = { details = it.id }) { Phone.call(context, it) }
+        ReturnToCallBar()
         val denied by activity.roleDenied.collectAsStateWithLifecycle()
         if (!isDefault && denied) {
             Card(Modifier.padding(horizontal = 12.dp).fillMaxWidth()) {

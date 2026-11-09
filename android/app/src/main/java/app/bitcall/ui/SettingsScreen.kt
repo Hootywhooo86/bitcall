@@ -67,6 +67,7 @@ enum class Section(val title: String, val icon: String, val group: String) {
     HOLD("Hold for Me", "⏸", "Call Assist"),
     NOTES("Call Notes", "🗒", "Call Assist"),
     CUE("Magic Cue", "✨", "Call Assist"),
+    DURING("During calls", "☎", "Call Assist"),
     RECORD("Call recording", "●", "Call Assist"),
     THEME("Theme, colors & look", "🎨", "General"),
     SOUNDS("Sounds & ringtone", "♪", "General"),
@@ -197,6 +198,22 @@ private fun SectionBody(section: Section, onChanged: () -> Unit) {
         Section.NOTES -> {
             Toggle("Live transcript", "Transcribe calls automatically (puts calls on speaker)", s.liveTranscript) { b, v -> b.copy(liveTranscript = v) }
             Info("Type notes during any call from the NOTES button. Notes and transcripts are saved with the call in Recents (🗒). Transcripts use the speaker + mic workaround, so they're best effort.")
+        }
+        Section.DURING -> {
+            val ctx = LocalContext.current
+            var canBubble by remember { mutableStateOf(app.bitcall.telecom.CallBubble.canShow(ctx)) }
+            val lifecycle = LocalLifecycleOwner.current.lifecycle
+            DisposableEffect(lifecycle) {
+                val obs = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME) canBubble = app.bitcall.telecom.CallBubble.canShow(ctx) }
+                lifecycle.addObserver(obs)
+                onDispose { lifecycle.removeObserver(obs) }
+            }
+            Toggle("Floating call bubble", "A ☎ 2:31 bubble stays on top of other apps during a call. Tap it to jump back; drag it anywhere.", s.callBubble) { b, v -> b.copy(callBubble = v) }
+            if (s.callBubble && !canBubble) {
+                Info("Needs Android's \"Display over other apps\" permission. If Android says it's restricted: App info → ⋮ → Allow restricted settings, then try again.")
+                Row { PixelChip("ALLOW BUBBLE", true) { ctx.startActivity(app.bitcall.telecom.CallBubble.permissionIntent(ctx)) } }
+            } else if (s.callBubble) Info("✓ The bubble is ready. It shows whenever you leave the call screen during a call.")
+            Info("You can also get back to a call from the ☎ Call card in your app switcher, the green RETURN TO CALL bar at the top of Bitcall, or the call notification.")
         }
         Section.CUE -> {
             Toggle("Magic Cue", "Show helpful info during calls", s.magicCue) { b, v -> b.copy(magicCue = v) }

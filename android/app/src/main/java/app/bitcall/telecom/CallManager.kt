@@ -197,6 +197,7 @@ object CallManager {
         }
         session.value = primary?.let { sessions[it.call] }
         primary?.let { CallNotifications.show(app, it) }
+        CallBubble.update(app)
     }
 
     private fun finish(s: CallSession) {
