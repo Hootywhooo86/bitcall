@@ -231,28 +231,16 @@ private fun TopBar(favorites: List<Contact>, onSettings: () -> Unit, onInfo: (Co
         Spacer(Modifier.weight(1f))
         Box {
             PixelButton(p.surface2, onClick = { open = true }) {
-                Text("★ FAVES ▾", style = px(9, p.text), modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp))
+                Text("★ FAVES", style = px(9, p.text), modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp))
             }
-            DropdownMenu(open, onDismissRequest = { open = false }, modifier = Modifier.background(p.surface)) {
-                if (favorites.isEmpty()) {
-                    DropdownMenuItem(text = { Text("No favorites yet.\nStar a contact ☆", style = px(10, p.dim)) }, onClick = { open = false })
-                }
-                favorites.forEach { c ->
-                    DropdownMenuItem(
-                        leadingIcon = { PixelAvatar(c.name, c.photoUri, 44.dp) },
-                        trailingIcon = {
-                            Text("ⓘ", style = px(16, p.accent), modifier = Modifier.clickable { open = false; onInfo(c) }.padding(10.dp))
-                        },
-                        text = {
-                            Column {
-                                Text(c.name, style = px(12, p.text))
-                                Text(Phone.pretty(c.primary), style = px(10, p.dim), modifier = Modifier.padding(top = 6.dp))
-                            }
-                        },
-                        onClick = { open = false; onCall(c.primary) },
-                    )
-                }
-            }
+        }
+        if (open) {
+            FavoritesSheet(
+                favorites,
+                onDismiss = { open = false },
+                onInfo = { open = false; onInfo(it) },
+                onCall = { open = false; onCall(it) },
+            )
         }
         Spacer(Modifier.width(4.dp))
         IconButton(onClick = onSettings) { Icon(Icons.Filled.Settings, "Settings", tint = p.text) }

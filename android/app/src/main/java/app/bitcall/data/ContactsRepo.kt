@@ -83,10 +83,17 @@ object ContactsRepo {
                 ),
                 null, null, null,
             )?.use { c ->
-                if (c.moveToFirst()) Contact(c.getLong(0), c.getString(1), listOf(number), c.getInt(2) == 1, c.getString(3)) else null
+                // A number can sit in several contacts (duplicates, SIM copies). It's a ★ favorite
+                // if ANY of them is starred, and the starred one supplies the name and photo.
+                val rows = ArrayList<Contact>()
+                while (c.moveToNext()) rows += Contact(c.getLong(0), c.getString(1), listOf(number), c.getInt(2) == 1, c.getString(3))
+                pickForCaller(rows)
             }
         }.getOrNull()
     }
+
+    /** The contact to show for a caller among every contact holding the number: a starred one first. */
+    fun pickForCaller(rows: List<Contact>): Contact? = rows.firstOrNull { it.starred } ?: rows.firstOrNull()
 
     fun setStarred(context: Context, contactId: Long, starred: Boolean) {
         val values = ContentValues().apply { put(ContactsContract.Contacts.STARRED, if (starred) 1 else 0) }

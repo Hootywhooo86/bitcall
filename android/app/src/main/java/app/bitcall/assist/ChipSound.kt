@@ -55,7 +55,7 @@ object ChipSound {
         }
     }
 
-    fun ringtoneTrack(): AudioTrack {
+    fun ringtoneTrack(usage: Int = AudioAttributes.USAGE_NOTIFICATION_RINGTONE): AudioTrack {
         // A looping two-bar chiptune phrase (Hz, ms); 0 = rest.
         val melody = listOf(
             784.0 to 120, 0.0 to 30, 784.0 to 120, 0.0 to 30, 1046.5 to 240, 0.0 to 60,
@@ -65,6 +65,6 @@ object ChipSound {
         val pcm = melody.flatMap { (f, ms) ->
             if (f == 0.0) ShortArray(RATE * ms / 1000).asList() else square(f, ms, 0.4, 0.25).asList()
         }.toShortArray()
-        return track(pcm, AudioAttributes.USAGE_NOTIFICATION_RINGTONE, loop = true)
+        return track(pcm, usage, loop = true)
     }
 }

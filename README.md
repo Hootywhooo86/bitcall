@@ -53,6 +53,17 @@ Code map: `data/` (contacts, call log, settings, notes, voicemail) · `telecom/`
 recorder, notifications) · `assist/` (Hold for Me, Magic Cue, transcriber, 8-bit synth) · `ai/` (opt-in on-device AI)
 · `ui/` (Compose screens).
 
+## Family AI (for other 128bit apps)
+
+Other 128bit apps can borrow the model downloaded in bitcall, so a multi-GB model lives on the phone once. bitsports uses it for hockey period recaps. Only apps signed with the same key as bitcall (the 128bit family key) get an answer. Nothing runs while you are in a call, and nothing works while AI is OFF in bitcall settings.
+
+Bind to `FamilyAiService` (action `app.bit128.family.AI_GENERATE`, package `app.bitcall`) with a `Messenger`:
+
+- request: `what=1`, data `{ system, user, maxTokens (<= 400), temperature }`, `replyTo` set
+- reply: `what=2`, data `{ ok, text?, error? }`, where error is one of `not_family`, `ai_off`, `no_model`, `in_call`, `failed`
+
+Callers need `<queries><package android:name="app.bitcall" /></queries>` on Android 11+.
+
 ## Architecture (128bit family standard)
 
 - **One 128bit account** across all apps from day one.

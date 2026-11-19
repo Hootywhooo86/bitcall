@@ -44,6 +44,22 @@ object BitAi {
     /** Drop the big model from memory (called when a call starts). */
     suspend fun releaseMain() { main?.second?.close(); main = null }
 
+    // --- Family AI (other 128bit apps, via FamilyAiService) ----------------------------------
+
+    private fun familyRole() = if (Settings.now.aiMode == "FULL") ModelRole.MAIN else ModelRole.FAST
+
+    /** True when the model the family would get is downloaded and the engine is in this build. */
+    fun familyModelReady(context: Context): Boolean {
+        if (!LlamaBridge.available) return false
+        val s = Settings.now
+        val spec = ModelCatalog.byId(if (familyRole() == ModelRole.MAIN) s.aiMainModel else s.aiFastModel) ?: return false
+        return ModelManager.status(context, spec) == ModelStatus.Ready
+    }
+
+    /** Same model choice as bitcall's own features: MAIN in FULL mode, otherwise FAST. */
+    suspend fun generateForFamily(context: Context, system: String, user: String, maxTokens: Int, temperature: Float): String? =
+        engine(context, familyRole())?.generate(system, user, maxTokens.coerceIn(1, 400), temperature)
+
     // --- Voicemail brain ---------------------------------------------------------------------
 
     suspend fun summarizeVoicemail(context: Context, transcript: String?): String? {

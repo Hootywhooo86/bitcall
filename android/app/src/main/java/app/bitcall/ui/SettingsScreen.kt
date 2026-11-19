@@ -1,5 +1,6 @@
 package app.bitcall.ui
 
+import android.app.NotificationManager
 import android.app.TimePickerDialog
 import android.content.Intent
 import android.telecom.TelecomManager
@@ -30,6 +31,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -40,6 +42,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.unit.dp
 import app.bitcall.data.BitSettings
 import app.bitcall.data.Blocklist
@@ -101,7 +106,11 @@ fun SettingsScreen(onBack: () -> Unit, onChanged: () -> Unit, initial: Section? 
                         }
                     }
                 }
-                item { Text("bitcall 0.1 · 128bit family", style = px(7, p.dim), modifier = Modifier.padding(vertical = 24.dp)) }
+                item {
+                    val ctx = LocalContext.current
+                    val version = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "?" }
+                    Text("bitcall $version · 128bit family", style = px(7, p.dim), modifier = Modifier.padding(vertical = 24.dp))
+                }
             }
         }
     }
@@ -116,6 +125,31 @@ private fun Toggle(label: String, sub: String?, on: Boolean, set: (BitSettings, 
             sub?.let { Text(it, style = px(7, p.dim), modifier = Modifier.padding(top = 6.dp)) }
         }
         Switch(on, { v -> Settings.update { set(it, v) } }, colors = SwitchDefaults.colors(checkedTrackColor = p.accent))
+    }
+}
+
+/** Do Not Disturb access lets bitcall pause phone DND while a ★ favorite rings, so the call screen shows too. */
+@Composable
+private fun DndAccessRow() {
+    val p = LocalPalette.current
+    val context = LocalContext.current
+    val nm = context.getSystemService(NotificationManager::class.java)
+    var granted by remember { mutableStateOf(nm.isNotificationPolicyAccessGranted) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        val obs = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME) granted = nm.isNotificationPolicyAccessGranted }
+        lifecycle.addObserver(obs)
+        onDispose { lifecycle.removeObserver(obs) }
+    }
+    if (granted) {
+        Info("✓ Do Not Disturb access is on. During phone DND, favorites ring (on the alarm sound) and pop up the call screen. Your DND stays on.")
+    } else {
+        Info("Favorites already ring during phone DND, on the alarm sound. Give bitcall Do Not Disturb access so the call screen pops up too. Your DND stays on.")
+        Row(Modifier.padding(bottom = 8.dp)) {
+            PixelChip("☾ ALLOW DND ACCESS", false) {
+                context.startActivity(Intent(android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
+            }
+        }
     }
 }
 
@@ -183,8 +217,10 @@ private fun SectionBody(section: Section, onChanged: () -> Unit) {
                     TimePickerDialog(context, { _, h, m -> Settings.update { it.copy(dndEnd = h * 60 + m) } }, s.dndEnd / 60, s.dndEnd % 60, false).show()
                 }
             }
-            Toggle("Let ★ favorites through", null, s.dndAllowFavorites) { b, v -> b.copy(dndAllowFavorites = v) }
-            Info("Silenced calls still show in Recents. Bitcall also respects your phone's own Do Not Disturb.")
+            Toggle("Let ★ favorites through", "Rings through your phone's own Do Not Disturb, on the alarm sound, even if the ringer is on vibrate", s.dndAllowFavorites) { b, v -> b.copy(dndAllowFavorites = v) }
+            if (s.dndAllowFavorites) DndAccessRow()
+            Info("Silenced calls still show in Recents. Everyone except ★ favorites follows your phone's own Do Not Disturb.")
+            RingThroughCheck()
         }
         Section.BLOCKED -> {
             var refresh by remember { mutableIntStateOf(0) }

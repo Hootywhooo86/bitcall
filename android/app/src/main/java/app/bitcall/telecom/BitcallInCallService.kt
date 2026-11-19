@@ -39,7 +39,10 @@ class BitcallInCallService : InCallService() {
 
     override fun onCallRemoved(call: Call) = CallManager.remove(call)
 
-    override fun onSilenceRinger() = Ringer.stop()
+    override fun onSilenceRinger() {
+        CallTrace.note("Android asked bitcall to silence the ringer (volume key or system)")
+        Ringer.stop()
+    }
 
     // --- audio routing -----------------------------------------------------------------------
 
