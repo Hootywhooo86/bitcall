@@ -4,7 +4,6 @@ import android.content.Context
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.telecom.Call
-import android.telecom.CallAudioState
 import android.telecom.Connection
 import android.telecom.VideoProfile
 import app.bitcall.assist.ChipSound
@@ -34,7 +33,28 @@ data class CallUi(
     val policyNote: String?,
 )
 
-data class AudioUi(val muted: Boolean = false, val speaker: Boolean = false)
+enum class RouteKind { EARPIECE, SPEAKER, WIRED, BLUETOOTH, OTHER }
+
+data class AudioRoute(val key: String, val kind: RouteKind, val name: String) {
+    val isHeadset get() = kind == RouteKind.WIRED || kind == RouteKind.BLUETOOTH
+    val icon get() = when (kind) {
+        RouteKind.EARPIECE -> "📱"
+        RouteKind.SPEAKER -> "🔊"
+        RouteKind.WIRED -> "🎧"
+        RouteKind.BLUETOOTH -> "🎧"
+        RouteKind.OTHER -> "📡"
+    }
+}
+
+data class AudioUi(
+    val muted: Boolean = false,
+    val routes: List<AudioRoute> = emptyList(),
+    val current: AudioRoute? = null,
+) {
+    val speaker get() = current?.kind == RouteKind.SPEAKER
+    val onHeadset get() = current?.isHeadset == true
+    val hasHeadset get() = routes.any { it.isHeadset }
+}
 
 enum class HoldState { OFF, LISTENING, HUMAN }
 
@@ -92,6 +112,7 @@ object CallManager {
         decisions.remove(call)
         refresh()
         if (primary == null) {
+            knownHeadsets = emptySet()
             Ringer.stop()
             stopAssist()
             if (recording.value) RecorderService.stop(app)
@@ -137,19 +158,47 @@ object CallManager {
     fun silence() = Ringer.stop()
 
     fun setMuted(muted: Boolean) { service?.setMuted(muted) }
-    @Suppress("DEPRECATION")
+
+    fun selectRoute(route: AudioRoute) { service?.selectRoute(route) }
+
+    /** Speaker on/off. "Off" prefers headphones when connected, otherwise the earpiece. */
     fun setSpeaker(on: Boolean) {
-        service?.setAudioRoute(if (on) CallAudioState.ROUTE_SPEAKER else CallAudioState.ROUTE_WIRED_OR_EARPIECE)
+        val routes = audio.value.routes
+        val target = if (on) routes.firstOrNull { it.kind == RouteKind.SPEAKER }
+        else routes.lastOrNull { it.isHeadset } ?: routes.firstOrNull { it.kind == RouteKind.EARPIECE }
+        target?.let(::selectRoute)
     }
+
+    /**
+     * Features that listen through the mic (recording, Hold for Me, transcripts) put the call on
+     * speaker, but never pull audio away from headphones the user is wearing.
+     */
+    fun speakerForListening() { if (!audio.value.onHeadset) setSpeaker(true) }
     fun toggleHold() {
         val c = primary?.call ?: return
         if (c.state == Call.STATE_HOLDING) c.unhold() else c.hold()
     }
     fun dtmf(ch: Char) { primary?.call?.run { playDtmfTone(ch); stopDtmfTone() } }
 
-    fun onAudio(state: CallAudioState) {
-        audio.value = AudioUi(state.isMuted, state.route == CallAudioState.ROUTE_SPEAKER)
+    fun onMuted(muted: Boolean) { audio.value = audio.value.copy(muted = muted) }
+
+    // Headsets we've already seen during this call; a new one means it was just plugged in / connected.
+    private var knownHeadsets = emptySet<String>()
+
+    fun onRoutes(routes: List<AudioRoute>, current: AudioRoute?) {
+        val pick = newHeadset(knownHeadsets, routes, current)
+        knownHeadsets = routes.filter { it.isHeadset }.map { it.key }.toSet()
+        audio.value = audio.value.copy(routes = routes, current = current)
+        if (pick != null && primary != null) selectRoute(pick)
     }
+
+    /**
+     * The headphones to switch to, if any: ones that just connected (or were already on when the
+     * call started) and aren't already in use. Headsets seen before are left alone, so picking
+     * Speaker by hand while wearing them sticks.
+     */
+    fun newHeadset(known: Set<String>, routes: List<AudioRoute>, current: AudioRoute?): AudioRoute? =
+        routes.lastOrNull { it.isHeadset && it.key !in known }?.takeIf { it.key != current?.key }
 
     fun onRecordingSaved(uri: String) {
         recording.value = false
@@ -160,7 +209,7 @@ object CallManager {
     // --- Hold for Me + live transcript (speaker + mic workaround) ----------------------------
 
     fun startHoldForMe() {
-        setSpeaker(true)
+        speakerForListening()
         setMuted(true)
         hold.value = HoldState.LISTENING
         ensureTranscriber()
@@ -172,7 +221,7 @@ object CallManager {
         if (!Settings.now.liveTranscript) stopAssist()
     }
 
-    fun startTranscript() { setSpeaker(true); ensureTranscriber() }
+    fun startTranscript() { speakerForListening(); ensureTranscriber() }
 
     private fun ensureTranscriber() {
         if (transcriber != null) return

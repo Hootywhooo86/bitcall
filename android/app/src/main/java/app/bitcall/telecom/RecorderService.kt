@@ -68,7 +68,7 @@ class RecorderService : Service() {
             .setContentIntent(CallNotifications.openCallScreen(this))
             .build()
         startForeground(7, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
-        if (Settings.now.recordOnSpeaker) CallManager.setSpeaker(true)
+        if (Settings.now.recordOnSpeaker) CallManager.speakerForListening()
         CallManager.recording.value = true
         CallManager.recordingSession = CallManager.session.value
         announceThen { startRecorder() }

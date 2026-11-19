@@ -72,3 +72,24 @@ class LogicTest {
         assertEquals(listOf("You haven't called Grandma in 3 weeks."), BitAi.nudges(contacts, calls))
     }
 }
+
+class AudioRouteTest {
+    private val ear = app.bitcall.telecom.AudioRoute("ear", app.bitcall.telecom.RouteKind.EARPIECE, "Phone")
+    private val spk = app.bitcall.telecom.AudioRoute("spk", app.bitcall.telecom.RouteKind.SPEAKER, "Speaker")
+    private val buds = app.bitcall.telecom.AudioRoute("aa:bb", app.bitcall.telecom.RouteKind.BLUETOOTH, "Pixel Buds")
+    private val cm = app.bitcall.telecom.CallManager
+
+    @Test fun switchesToHeadphonesWhenTheyConnect() {
+        assertEquals(buds, cm.newHeadset(emptySet(), listOf(ear, spk, buds), spk))
+    }
+
+    @Test fun leavesItAloneOnceKnown() {
+        // User picked Speaker by hand while the buds were already connected.
+        assertEquals(null, cm.newHeadset(setOf("aa:bb"), listOf(ear, spk, buds), spk))
+    }
+
+    @Test fun noSwitchWithoutHeadphonesOrWhenAlreadyOnThem() {
+        assertEquals(null, cm.newHeadset(emptySet(), listOf(ear, spk), ear))
+        assertEquals(null, cm.newHeadset(emptySet(), listOf(ear, spk, buds), buds))
+    }
+}

@@ -96,7 +96,7 @@ class InCallActivity : ComponentActivity() {
     }
 }
 
-private enum class Panel { NONE, KEYPAD, NOTES, CUE, REPLY }
+private enum class Panel { NONE, KEYPAD, NOTES, CUE, REPLY, AUDIO }
 
 @Composable
 private fun InCallScreen(ui: CallUi) {
@@ -145,6 +145,9 @@ private fun InCallScreen(ui: CallUi) {
         ui.policyNote?.let { Text(it, style = px(8, p.dim), modifier = Modifier.padding(top = 6.dp)) }
         Text(statusText(ui) + if (dialing) dots() else "", style = px(12, p.accent), modifier = Modifier.padding(top = 10.dp))
         if (recording) Text("● REC", style = px(10, p.bad), modifier = Modifier.padding(top = 8.dp))
+        audio.current?.takeIf { it.kind != app.bitcall.telecom.RouteKind.EARPIECE }?.let { r ->
+            Text("${r.icon} ${r.name.uppercase()}", style = px(10, p.good), modifier = Modifier.padding(top = 8.dp))
+        }
 
         when (hold) {
             HoldState.LISTENING -> Banner("⏸ HOLD FOR ME: listening for a person… (you're muted)", p.surface2) { CallManager.stopHoldForMe() }
@@ -158,6 +161,17 @@ private fun InCallScreen(ui: CallUi) {
                 Panel.KEYPAD -> InCallKeypad()
                 Panel.NOTES -> NotesPanel()
                 Panel.CUE -> CuePanel(ui.number)
+                Panel.AUDIO -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("SEND CALL AUDIO TO", style = px(9, p.accent))
+                    audio.routes.forEach { r ->
+                        val on = r.key == audio.current?.key
+                        PixelButton(if (on) p.accent else p.surface2, Modifier.fillMaxWidth(), onClick = {
+                            CallManager.selectRoute(r); panel = Panel.NONE
+                        }) {
+                            Text("${r.icon}  ${r.name}" + if (on) "  ✓" else "", style = px(12, if (on) onColor(p.accent) else p.text), modifier = Modifier.padding(16.dp))
+                        }
+                    }
+                }
                 Panel.REPLY -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     var smart by remember(ui.number) { mutableStateOf<String?>(null) }
                     LaunchedEffect(ui.number) { smart = app.bitcall.ai.BitAi.smartDecline(context, ui.name, null) }
@@ -193,7 +207,11 @@ private fun InCallScreen(ui: CallUi) {
             val grid = buildList<Triple<String, Boolean, () -> Unit>> {
                 add(Triple(if (audio.muted) "🔇 MUTED" else "🎙 MUTE", audio.muted) { CallManager.setMuted(!audio.muted) })
                 add(Triple("⌨ KEYPAD", panel == Panel.KEYPAD) { panel = if (panel == Panel.KEYPAD) Panel.NONE else Panel.KEYPAD })
-                add(Triple("🔊 SPEAKER", audio.speaker) { CallManager.setSpeaker(!audio.speaker) })
+                // With headphones around, one button picks between phone / speaker / headphones.
+                if (audio.hasHeadset) add(Triple("${audio.current?.icon ?: "🎧"} AUDIO", panel == Panel.AUDIO) {
+                    panel = if (panel == Panel.AUDIO) Panel.NONE else Panel.AUDIO
+                })
+                else add(Triple("🔊 SPEAKER", audio.speaker) { CallManager.setSpeaker(!audio.speaker) })
                 if (dialing) return@buildList
                 add(Triple(if (ui.state == Call.STATE_HOLDING) "▶ RESUME" else "⏸ HOLD", ui.state == Call.STATE_HOLDING) { CallManager.toggleHold() })
                 add(Triple(if (recording) "■ STOP REC" else "● RECORD", recording) {
