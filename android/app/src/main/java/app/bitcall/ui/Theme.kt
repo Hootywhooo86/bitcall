@@ -20,22 +20,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
-import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontVariation
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.bitcall.R
 import app.bitcall.data.BitSettings
 import app.bitcall.data.Settings
 
-// Pixelify Sans: a detailed, modern pixel font (variable weight). Bold is used for headings.
-@OptIn(ExperimentalTextApi::class)
-val PixelFont = FontFamily(
-    Font(R.font.pixelify_sans, FontWeight.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(450))),
-    Font(R.font.pixelify_sans, FontWeight.Bold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
-)
+// Jersey 10: detailed pixel font with clear, unmistakable digits (good for phone numbers).
+val PixelFont = FontFamily(Font(R.font.jersey10))
 
 data class Palette(
     val id: String,
@@ -88,12 +81,11 @@ fun onColor(bg: Color): Color =
     if (0.299 * bg.red + 0.587 * bg.green + 0.114 * bg.blue > 0.55) Color(0xFF0D0D1A) else Color.White
 
 /**
- * Pixel text. Sizes are in the app's original "Press Start" scale; Pixelify is narrower, so it's
- * drawn 1.5x bigger to keep every screen's proportions. Big sizes get the bold weight.
+ * Pixel text. Sizes are in the app's original "Press Start" scale; Jersey 10 is condensed, so it's
+ * drawn 1.7x bigger to keep every screen's proportions.
  */
 fun px(size: Int, color: Color = Color.Unspecified, glow: Color? = null) = TextStyle(
-    fontFamily = PixelFont, fontSize = (size * 1.5).sp, lineHeight = (size * 1.5 * 1.25).sp, color = color,
-    fontWeight = if (size >= 14) FontWeight.Bold else FontWeight.Normal,
+    fontFamily = PixelFont, fontSize = (size * 1.7).sp, lineHeight = (size * 1.7 * 1.2).sp, color = color,
     // Hard 1-pixel drop shadow like sprite text; glow adds a soft halo on top.
     shadow = glow?.let { Shadow(it, Offset.Zero, 14f) } ?: Shadow(Color.Black.copy(alpha = 0.35f), Offset(2f, 2f), 0f),
 )
