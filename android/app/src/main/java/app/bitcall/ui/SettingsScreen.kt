@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
@@ -92,7 +91,7 @@ fun SettingsScreen(onBack: () -> Unit, onChanged: () -> Unit, initial: Section? 
                 Section.entries.groupBy { it.group }.forEach { (group, sections) ->
                     item { SectionTitle(group) }
                     item {
-                        Column(Modifier.clip(RoundedCornerShape(14.dp)).background(p.surface)) {
+                        Column(Modifier.clip(pixelShape()).background(p.surface)) {
                             sections.forEachIndexed { i, s ->
                                 Row(
                                     Modifier.fillMaxWidth().clickable { open = s }.padding(horizontal = 16.dp, vertical = 18.dp),
@@ -292,8 +291,8 @@ private fun ThemeEditor() {
                     val i = row * 3 + col
                     val c = p.key(i, s)
                     Box(
-                        Modifier.weight(1f).aspectRatio(2f).clip(RoundedCornerShape(6.dp)).background(c)
-                            .border(3.dp, if (selectedKey == i) p.text else Color.Transparent, RoundedCornerShape(6.dp))
+                        Modifier.weight(1f).aspectRatio(2f).clip(pixelShape(2.dp)).background(c)
+                            .border(3.dp, if (selectedKey == i) p.text else Color.Transparent, pixelShape(2.dp))
                             .clickable { selectedKey = i },
                         contentAlignment = Alignment.Center,
                     ) { Text(d, style = px(12, onColor(c))) }
@@ -305,7 +304,7 @@ private fun ThemeEditor() {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             SWATCHES.forEach { sw ->
                 Box(
-                    Modifier.size(32.dp).clip(RoundedCornerShape(4.dp)).background(Color(sw)).border(2.dp, p.surface2, RoundedCornerShape(4.dp))
+                    Modifier.size(32.dp).clip(pixelShape(2.dp)).background(Color(sw)).border(2.dp, p.surface2, pixelShape(2.dp))
                         .clickable { Settings.update { it.copy(keyColors = it.keyColors + (i to sw)) } },
                 )
             }

@@ -6,7 +6,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -72,7 +71,7 @@ fun ContactsScreen(contacts: List<Contact>, onChanged: () -> Unit, onOpen: (Cont
                 item { SectionTitle("★ Favorites · ${favorites.size}") }
                 // Favorites sit on tone cards with even gaps, so they read as their own group.
                 items(favorites, key = { "f${it.id}" }) { c ->
-                    Box(Modifier.padding(vertical = 4.dp).clip(RoundedCornerShape(14.dp)).background(p.surface).padding(horizontal = 12.dp)) {
+                    Box(Modifier.padding(vertical = 4.dp).clip(pixelShape()).background(p.surface).padding(horizontal = 12.dp)) {
                         ContactRow(c, { onOpen(c) }) { star(context, scope, c, onChanged) }
                     }
                 }

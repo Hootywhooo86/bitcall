@@ -40,7 +40,7 @@ import app.bitcall.data.Phone
 import app.bitcall.data.Settings
 
 val KEYS = listOf(
-    "1" to "◌◌", "2" to "ABC", "3" to "DEF",
+    "1" to "VM", "2" to "ABC", "3" to "DEF",
     "4" to "GHI", "5" to "JKL", "6" to "MNO",
     "7" to "PQRS", "8" to "TUV", "9" to "WXYZ",
     "*" to "", "0" to "+", "#" to "",
@@ -104,6 +104,7 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
                         PixelButton(
                             color,
                             Modifier.weight(1f).aspectRatio(1.55f),
+                            sparks = true,
                             onLongClick = {
                                 when {
                                     digit == '1' -> Phone.call(context, "voicemail")
@@ -120,7 +121,9 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
                             },
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(d, style = px(26, onColor(color)))
+                                // Pixelify's "*" is a tiny blob, so the star key gets a drawn 7x7 sprite.
+                                if (d == "*") AsteriskSprite(onColor(color))
+                                else Text(d, style = px(26, onColor(color)))
                                 val speed = s.speedDial[digit - '0']
                                 Text(
                                     if (speed != null && digit in '2'..'9') "⚡" else sub,
@@ -133,7 +136,7 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
             }
         }
         Spacer(Modifier.height(10.dp))
-        PixelButton(p.good, Modifier.padding(bottom = 12.dp).fillMaxWidth(0.5f).widthIn(max = 320.dp).height(80.dp), onClick = {
+        PixelButton(p.good, Modifier.padding(bottom = 12.dp).fillMaxWidth(0.5f).widthIn(max = 320.dp).height(80.dp), shine = true, onClick = {
             if (digits.isNotEmpty()) Phone.call(context, digits)
         }) {
             Icon(Icons.Filled.Call, "Call", tint = onColor(p.good), modifier = Modifier.size(36.dp))
@@ -169,4 +172,18 @@ fun SpeedDialPicker(slot: Int, typed: String, contacts: List<Contact>, onDismiss
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("CANCEL", style = px(11, p.dim)) } },
     )
+}
+
+private val ASTERISK = listOf("   #   ", "#  #  #", " # # # ", "  ###  ", " # # # ", "#  #  #", "   #   ")
+
+@Composable
+private fun AsteriskSprite(color: androidx.compose.ui.graphics.Color) {
+    androidx.compose.foundation.Canvas(Modifier.padding(vertical = 4.dp).size(28.dp)) {
+        val cell = size.width / 7f
+        ASTERISK.forEachIndexed { y, row ->
+            row.forEachIndexed { x, ch ->
+                if (ch == '#') drawRect(color, androidx.compose.ui.geometry.Offset(x * cell, y * cell), androidx.compose.ui.geometry.Size(cell + 0.5f, cell + 0.5f))
+            }
+        }
+    }
 }

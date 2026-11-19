@@ -31,11 +31,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
@@ -270,7 +270,7 @@ private fun statusText(ui: CallUi): String {
 private fun Banner(text: String, color: Color, onClick: () -> Unit) {
     Text(
         text, style = px(8, onColor(color)), textAlign = TextAlign.Center,
-        modifier = Modifier.padding(top = 12.dp).fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(color).clickable(onClick = onClick).padding(12.dp),
+        modifier = Modifier.padding(top = 12.dp).fillMaxWidth().clip(pixelShape()).background(color).clickable(onClick = onClick).padding(12.dp),
     )
 }
 
@@ -348,11 +348,12 @@ private fun RingingAvatar(ui: CallUi, active: Boolean, size: androidx.compose.ui
                 val f = (pulse + offset) % 1f
                 Box(
                     Modifier.size(size + size * 0.45f * f).alpha(1f - f)
-                        .border(4.dp, ringColor, RoundedCornerShape(18.dp)),
+                        .border(4.dp, ringColor, pixelShape()),
                 )
             }
         }
-        PixelAvatar(ui.name ?: ui.number, ui.photoUri, size, ui.enemy)
+        val bob = idleBob(active)
+        Box(Modifier.offset(y = ART_PX * bob)) { PixelAvatar(ui.name ?: ui.number, ui.photoUri, size, ui.enemy) }
     }
 }
 

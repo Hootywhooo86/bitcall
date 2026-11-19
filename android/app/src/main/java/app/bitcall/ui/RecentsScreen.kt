@@ -6,6 +6,19 @@ import android.media.MediaPlayer
 import android.net.Uri
 import android.provider.CallLog
 import android.text.format.DateUtils
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.offset
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,7 +34,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -137,7 +149,7 @@ private fun RecentRow(e: CallEntry, photo: String?, hasMemo: Boolean, score: Int
         else -> "↙" to p.accent
     }
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(if (open) p.surface else Color.Transparent)
+        Modifier.fillMaxWidth().clip(pixelShape()).background(if (open) p.surface else Color.Transparent)
             .clickable(onClick = onClick).padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -225,15 +237,40 @@ private fun play(context: Context, uri: Uri, onDone: () -> Unit): MediaPlayer? =
 @Composable
 private fun XpCard(stats: app.bitcall.data.CallStats) {
     val p = LocalPalette.current
+    val context = LocalContext.current
     var open by remember { mutableStateOf(false) }
+    // Bar fills up from empty each time the screen opens, like an RPG results screen.
+    var target by remember { mutableStateOf(0f) }
+    LaunchedEffect(stats.levelProgress) { target = stats.levelProgress.coerceIn(0.02f, 1f) }
+    val fill by animateFloatAsState(target, tween(1200, easing = FastOutSlowInEasing), label = "xp")
+    // LEVEL UP! when the level is higher than the last one this phone saw.
+    var levelUp by remember { mutableStateOf(false) }
+    LaunchedEffect(stats.level) {
+        val prefs = context.getSharedPreferences("xp", android.content.Context.MODE_PRIVATE)
+        val last = prefs.getInt("level", 0)
+        if (last in 1 until stats.level) levelUp = true
+        prefs.edit().putInt("level", stats.level).apply()
+    }
     Card(Modifier.fillMaxWidth().padding(top = 4.dp).clickable { open = !open }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("LV ${stats.level}", style = px(14, p.accent, glow = p.accent))
             Text("  ${stats.xp} XP", style = px(9, p.text), modifier = Modifier.weight(1f))
             if (stats.streakDays > 0) Text("🔥${stats.streakDays}", style = px(10, p.text))
         }
-        Box(Modifier.padding(top = 10.dp).fillMaxWidth().height(12.dp).clip(RoundedCornerShape(3.dp)).background(p.surface2)) {
-            Box(Modifier.fillMaxHeight().fillMaxWidth(stats.levelProgress.coerceIn(0.02f, 1f)).background(p.good))
+        if (levelUp) LevelUpBanner { levelUp = false }
+        // Segmented pixel bar: 20 blocks with a highlight row, filled blocks glow.
+        Canvas(Modifier.padding(top = 10.dp).fillMaxWidth().height(14.dp)) {
+            val n = 20
+            val gap = 2.dp.toPx()
+            val w = (size.width - gap * (n - 1)) / n
+            val lit = fill * n
+            repeat(n) { i ->
+                val x = i * (w + gap)
+                val c = if (i < lit) p.good else p.surface2
+                drawRect(darken(c, 0.6f), Offset(x, 0f), Size(w, size.height))
+                drawRect(c, Offset(x, 0f), Size(w, size.height - 3.dp.toPx()))
+                drawRect(lighten(c, 0.35f), Offset(x, 0f), Size(w, 3.dp.toPx()))
+            }
         }
         if (open) {
             Text(
@@ -241,9 +278,30 @@ private fun XpCard(stats: app.bitcall.data.CallStats) {
                 style = px(8, p.dim), modifier = Modifier.padding(top = 12.dp),
             )
             FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                stats.badges.forEach { Text(it, style = px(7, p.text), modifier = Modifier.padding(vertical = 4.dp).clip(RoundedCornerShape(4.dp)).background(p.surface2).padding(6.dp)) }
+                stats.badges.forEach { Text(it, style = px(7, p.text), modifier = Modifier.padding(vertical = 4.dp).clip(pixelShape(2.dp)).background(p.surface2).padding(6.dp)) }
             }
         }
+    }
+}
+
+/** Bouncing "LEVEL UP!" with a spark burst; tap or wait 4 s to dismiss. */
+@Composable
+private fun LevelUpBanner(onDone: () -> Unit) {
+    val p = LocalPalette.current
+    val spark = remember { SparkState() }
+    val t = rememberInfiniteTransition(label = "lvl")
+    val jump by t.animateFloat(0f, 1f, infiniteRepeatable(tween(500), RepeatMode.Reverse), label = "j")
+    LaunchedEffect(Unit) {
+        repeat(3) { spark.fire() }
+        kotlinx.coroutines.delay(4000)
+        onDone()
+    }
+    Box(
+        Modifier.fillMaxWidth().padding(top = 8.dp).height(40.dp).clickable(onClick = onDone)
+            .drawWithContent { drawContent(); drawSparks(spark, p.accent) },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text("★ LEVEL UP! ★", style = px(16, p.accent, glow = p.accent), modifier = Modifier.offset(y = (-6 * jump).dp))
     }
 }
 

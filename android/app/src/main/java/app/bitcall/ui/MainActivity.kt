@@ -11,7 +11,10 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -214,7 +217,9 @@ fun Home(activity: MainActivity, incomingDial: MutableStateFlow<String?>) {
                     Modifier.clickable { tab = t }.padding(8.dp).widthIn(min = 64.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Icon(t.icon, t.label, tint = if (sel) p.accent else p.dim)
+                    // Selected tab icon hops up with a springy bounce.
+                    val hop by animateDpAsState(if (sel) (-6).dp else 0.dp, spring(dampingRatio = 0.35f, stiffness = 600f), label = "hop")
+                    Icon(t.icon, t.label, tint = if (sel) p.accent else p.dim, modifier = Modifier.offset(y = hop))
                     Text(t.label, style = px(7, if (sel) p.accent else p.dim), modifier = Modifier.padding(top = 4.dp))
                 }
             }
