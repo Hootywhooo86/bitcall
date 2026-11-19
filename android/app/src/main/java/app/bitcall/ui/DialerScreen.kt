@@ -2,7 +2,6 @@ package app.bitcall.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -62,7 +60,7 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
         else contacts.filter { c -> c.numbers.any { Phone.t9Matches(digits, c.name, it) } }.take(4)
     }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.Bottom) {
             items(matches, key = { it.id }) { c ->
                 Row(
@@ -95,16 +93,17 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
             }
         }
 
-        Column(Modifier.widthIn(max = 360.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        // Full width on a phone; capped on the unfolded Fold so keys stay a sensible size.
+        Column(Modifier.fillMaxWidth().widthIn(max = 640.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             KEYS.chunked(3).forEachIndexed { row, keys ->
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     keys.forEachIndexed { col, (d, sub) ->
                         val index = row * 3 + col
                         val color = p.key(index, s)
                         val digit = d.single()
                         PixelButton(
                             color,
-                            Modifier.weight(1f).aspectRatio(1.45f),
+                            Modifier.weight(1f).aspectRatio(1.55f),
                             onLongClick = {
                                 when {
                                     digit == '1' -> Phone.call(context, "voicemail")
@@ -121,11 +120,11 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
                             },
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(d, style = px(18, onColor(color)))
+                                Text(d, style = px(26, onColor(color)))
                                 val speed = s.speedDial[digit - '0']
                                 Text(
                                     if (speed != null && digit in '2'..'9') "⚡" else sub,
-                                    style = px(6, onColor(color).copy(alpha = 0.7f)), modifier = Modifier.padding(top = 4.dp),
+                                    style = px(9, onColor(color).copy(alpha = 0.7f)), modifier = Modifier.padding(top = 6.dp),
                                 )
                             }
                         }
@@ -134,14 +133,10 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
             }
         }
         Spacer(Modifier.height(10.dp))
-        Row(Modifier.padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.width(56.dp))
-            PixelButton(p.good, Modifier.size(width = 120.dp, height = 64.dp), onClick = {
-                if (digits.isNotEmpty()) Phone.call(context, digits)
-            }) {
-                Icon(Icons.Filled.Call, "Call", tint = onColor(p.good), modifier = Modifier.size(28.dp))
-            }
-            Box(Modifier.width(56.dp))
+        PixelButton(p.good, Modifier.padding(bottom = 12.dp).fillMaxWidth(0.5f).widthIn(max = 320.dp).height(80.dp), onClick = {
+            if (digits.isNotEmpty()) Phone.call(context, digits)
+        }) {
+            Icon(Icons.Filled.Call, "Call", tint = onColor(p.good), modifier = Modifier.size(36.dp))
         }
     }
 
