@@ -32,6 +32,9 @@ data class BitSettings(
     val speedDial: Map<Int, String> = emptyMap(), // digit 2..9 -> number
     val spamNumbers: Set<String> = emptySet(),    // normalized keys
     val googleAccount: String? = null,
+    // Call audio
+    val autoHeadphones: Boolean = true,
+    val neverAutoAudio: Set<String> = emptySet(), // device names that never get audio automatically
     // On-device AI: off until the user opts in after install.
     val aiMode: String = "OFF", // OFF | FAST | FULL
     val aiAsked: Boolean = false,
@@ -95,6 +98,8 @@ object Settings {
             } ?: d.speedDial,
             spamNumbers = prefs.getStringSet("spamNumbers", d.spamNumbers)!!.toSet(),
             googleAccount = prefs.getString("googleAccount", null),
+            autoHeadphones = prefs.getBoolean("autoHeadphones", d.autoHeadphones),
+            neverAutoAudio = prefs.getStringSet("neverAutoAudio", d.neverAutoAudio)!!.toSet(),
             aiMode = prefs.getString("aiMode", d.aiMode)!!,
             aiAsked = prefs.getBoolean("aiAsked", d.aiAsked),
             aiMainModel = prefs.getString("aiMainModel", d.aiMainModel)!!,
@@ -125,6 +130,8 @@ object Settings {
             .putString("speedDial", JSONObject(s.speedDial.mapKeys { it.key.toString() }).toString())
             .putStringSet("spamNumbers", s.spamNumbers)
             .putString("googleAccount", s.googleAccount)
+            .putBoolean("autoHeadphones", s.autoHeadphones)
+            .putStringSet("neverAutoAudio", s.neverAutoAudio)
             .putString("aiMode", s.aiMode)
             .putBoolean("aiAsked", s.aiAsked)
             .putString("aiMainModel", s.aiMainModel)

@@ -35,14 +35,14 @@ data class CallUi(
 
 enum class RouteKind { EARPIECE, SPEAKER, WIRED, BLUETOOTH, OTHER }
 
-data class AudioRoute(val key: String, val kind: RouteKind, val name: String) {
+data class AudioRoute(val key: String, val kind: RouteKind, val name: String, val isWatch: Boolean = false) {
     val isHeadset get() = kind == RouteKind.WIRED || kind == RouteKind.BLUETOOTH
-    val icon get() = when (kind) {
-        RouteKind.EARPIECE -> "📱"
-        RouteKind.SPEAKER -> "🔊"
-        RouteKind.WIRED -> "🎧"
-        RouteKind.BLUETOOTH -> "🎧"
-        RouteKind.OTHER -> "📡"
+    val icon get() = when {
+        isWatch -> "⌚"
+        kind == RouteKind.EARPIECE -> "📱"
+        kind == RouteKind.SPEAKER -> "🔊"
+        kind == RouteKind.WIRED || kind == RouteKind.BLUETOOTH -> "🎧"
+        else -> "📡"
     }
 }
 
@@ -53,7 +53,7 @@ data class AudioUi(
 ) {
     val speaker get() = current?.kind == RouteKind.SPEAKER
     val onHeadset get() = current?.isHeadset == true
-    val hasHeadset get() = routes.any { it.isHeadset }
+    val hasHeadset get() = routes.any { it.isHeadset && !it.isWatch }
 }
 
 enum class HoldState { OFF, LISTENING, HUMAN }
@@ -141,7 +141,8 @@ object CallManager {
         ringing.remove(call)
         refresh()
         if (primary == null) {
-            knownHeadsets = emptySet()
+            knownDevices = emptySet()
+            manualPick = null
             Ringer.stop()
             stopAssist()
             if (recording.value) RecorderService.stop(app)
@@ -197,13 +198,17 @@ object CallManager {
 
     fun setMuted(muted: Boolean) { service?.setMuted(muted) }
 
-    fun selectRoute(route: AudioRoute) { service?.selectRoute(route) }
+    /** The user picked this route: it sticks until they pick another or new headphones connect. */
+    fun selectRoute(route: AudioRoute) {
+        manualPick = AudioPolicy.identity(route)
+        service?.selectRoute(route)
+    }
 
-    /** Speaker on/off. "Off" prefers headphones when connected, otherwise the earpiece. */
+    /** Speaker on/off. "Off" prefers headphones (never a watch) when connected, otherwise the earpiece. */
     fun setSpeaker(on: Boolean) {
         val routes = audio.value.routes
         val target = if (on) routes.firstOrNull { it.kind == RouteKind.SPEAKER }
-        else routes.lastOrNull { it.isHeadset } ?: routes.firstOrNull { it.kind == RouteKind.EARPIECE }
+        else routes.lastOrNull { it.isHeadset && !it.isWatch } ?: routes.firstOrNull { it.kind == RouteKind.EARPIECE }
         target?.let(::selectRoute)
     }
 
@@ -220,23 +225,21 @@ object CallManager {
 
     fun onMuted(muted: Boolean) { audio.value = audio.value.copy(muted = muted) }
 
-    // Headsets we've already seen during this call; a new one means it was just plugged in / connected.
-    private var knownHeadsets = emptySet<String>()
+    // Headsets seen during this call (by kind + name), and the route the user last picked by hand.
+    private var knownDevices = emptySet<String>()
+    private var manualPick: String? = null
 
     fun onRoutes(routes: List<AudioRoute>, current: AudioRoute?) {
-        val pick = newHeadset(knownHeadsets, routes, current)
-        knownHeadsets = routes.filter { it.isHeadset }.map { it.key }.toSet()
+        val s = Settings.now
+        val move = AudioPolicy.autoMove(
+            knownDevices, routes, current,
+            userPickedCurrent = current != null && AudioPolicy.identity(current) == manualPick,
+            autoHeadphones = s.autoHeadphones, neverAuto = s.neverAutoAudio,
+        )
+        knownDevices = routes.filter { it.isHeadset }.map(AudioPolicy::identity).toSet()
         audio.value = audio.value.copy(routes = routes, current = current)
-        if (pick != null && primary != null) selectRoute(pick)
+        if (move != null && primary != null) service?.selectRoute(move)
     }
-
-    /**
-     * The headphones to switch to, if any: ones that just connected (or were already on when the
-     * call started) and aren't already in use. Headsets seen before are left alone, so picking
-     * Speaker by hand while wearing them sticks.
-     */
-    fun newHeadset(known: Set<String>, routes: List<AudioRoute>, current: AudioRoute?): AudioRoute? =
-        routes.lastOrNull { it.isHeadset && it.key !in known }?.takeIf { it.key != current?.key }
 
     fun onRecordingSaved(uri: String) {
         recording.value = false

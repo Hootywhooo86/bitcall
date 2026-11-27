@@ -165,12 +165,27 @@ private fun InCallScreen(ui: CallUi) {
                     Text("SEND CALL AUDIO TO", style = px(9, p.accent))
                     audio.routes.forEach { r ->
                         val on = r.key == audio.current?.key
-                        PixelButton(if (on) p.accent else p.surface2, Modifier.fillMaxWidth(), onClick = {
-                            CallManager.selectRoute(r); panel = Panel.NONE
-                        }) {
-                            Text("${r.icon}  ${r.name}" + if (on) "  ✓" else "", style = px(12, if (on) onColor(p.accent) else p.text), modifier = Modifier.padding(16.dp))
+                        val noAuto = r.isWatch || r.name in s.neverAutoAudio
+                        PixelButton(
+                            if (on) p.accent else p.surface2, Modifier.fillMaxWidth(),
+                            // Long-press a Bluetooth device to stop (or allow) automatic connection.
+                            onLongClick = if (r.kind == app.bitcall.telecom.RouteKind.BLUETOOTH && !r.isWatch) ({
+                                app.bitcall.data.Settings.update {
+                                    it.copy(neverAutoAudio = if (r.name in it.neverAutoAudio) it.neverAutoAudio - r.name else it.neverAutoAudio + r.name)
+                                }
+                            }) else null,
+                            onClick = { CallManager.selectRoute(r); panel = Panel.NONE },
+                        ) {
+                            Column(Modifier.fillMaxWidth().padding(14.dp)) {
+                                Text("${r.icon}  ${r.name}" + if (on) "  ✓" else "", style = px(12, if (on) onColor(p.accent) else p.text))
+                                if (r.isHeadset && noAuto) Text(
+                                    if (r.isWatch) "watch · never auto-connects" else "never auto-connects",
+                                    style = px(7, (if (on) onColor(p.accent) else p.dim)), modifier = Modifier.padding(top = 4.dp),
+                                )
+                            }
                         }
                     }
+                    Text("Long-press headphones to stop them auto-connecting.", style = px(7, p.dim))
                 }
                 Panel.REPLY -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     var smart by remember(ui.number) { mutableStateOf<String?>(null) }
@@ -207,11 +222,10 @@ private fun InCallScreen(ui: CallUi) {
             val grid = buildList<Triple<String, Boolean, () -> Unit>> {
                 add(Triple(if (audio.muted) "🔇 MUTED" else "🎙 MUTE", audio.muted) { CallManager.setMuted(!audio.muted) })
                 add(Triple("⌨ KEYPAD", panel == Panel.KEYPAD) { panel = if (panel == Panel.KEYPAD) Panel.NONE else Panel.KEYPAD })
-                // With headphones around, one button picks between phone / speaker / headphones.
-                if (audio.hasHeadset) add(Triple("${audio.current?.icon ?: "🎧"} AUDIO", panel == Panel.AUDIO) {
+                // One button always opens the audio picker: phone, speaker, headphones, each Bluetooth device.
+                add(Triple("${audio.current?.icon ?: "🔊"} AUDIO", panel == Panel.AUDIO || audio.speaker || audio.onHeadset) {
                     panel = if (panel == Panel.AUDIO) Panel.NONE else Panel.AUDIO
                 })
-                else add(Triple("🔊 SPEAKER", audio.speaker) { CallManager.setSpeaker(!audio.speaker) })
                 if (dialing) return@buildList
                 add(Triple(if (ui.state == Call.STATE_HOLDING) "▶ RESUME" else "⏸ HOLD", ui.state == Call.STATE_HOLDING) { CallManager.toggleHold() })
                 add(Triple(if (recording) "■ STOP REC" else "● RECORD", recording) {

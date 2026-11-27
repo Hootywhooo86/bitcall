@@ -50,7 +50,8 @@ class BitcallInCallService : InCallService() {
     override fun onCallAudioStateChanged(audioState: CallAudioState) {
         lastAudioState = audioState
         CallManager.onMuted(audioState.isMuted)
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) publishLegacy(audioState)
+        // Older Android, or a phone that never sends the Android 14 endpoint list: use this state.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE || endpoints.isEmpty()) publishLegacy(audioState)
     }
 
     @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
@@ -72,14 +73,9 @@ class BitcallInCallService : InCallService() {
     private fun publishEndpoints() {
         fun route(e: CallEndpoint) = AudioRoute(
             key = e.identifier.toString(),
-            kind = when (e.endpointType) {
-                CallEndpoint.TYPE_EARPIECE -> RouteKind.EARPIECE
-                CallEndpoint.TYPE_SPEAKER -> RouteKind.SPEAKER
-                CallEndpoint.TYPE_WIRED_HEADSET -> RouteKind.WIRED
-                CallEndpoint.TYPE_BLUETOOTH -> RouteKind.BLUETOOTH
-                else -> RouteKind.OTHER
-            },
+            kind = kindOf(e),
             name = e.endpointName.toString(),
+            isWatch = e.endpointType == CallEndpoint.TYPE_BLUETOOTH && AudioPolicy.isWatch(this, e.endpointName.toString()),
         )
         CallManager.onRoutes(endpoints.map(::route), endpoint?.let(::route))
     }
@@ -92,7 +88,9 @@ class BitcallInCallService : InCallService() {
             if (s.supportedRouteMask and CallAudioState.ROUTE_WIRED_HEADSET != 0) add(AudioRoute("wired", RouteKind.WIRED, "Headphones"))
             if (s.supportedRouteMask and CallAudioState.ROUTE_SPEAKER != 0) add(AudioRoute("speaker", RouteKind.SPEAKER, "Speaker"))
             s.supportedBluetoothDevices.forEach { d ->
-                add(AudioRoute(d.address, RouteKind.BLUETOOTH, runCatching { d.name }.getOrNull() ?: "Bluetooth"))
+                val name = runCatching { d.name }.getOrNull() ?: "Bluetooth"
+                val btClass = runCatching { d.bluetoothClass }.getOrNull()
+                add(AudioRoute(d.address, RouteKind.BLUETOOTH, name, AudioPolicy.isWatch(this@BitcallInCallService, name, btClass)))
             }
         }
         val current = when (s.route) {
@@ -109,15 +107,35 @@ class BitcallInCallService : InCallService() {
     @Suppress("DEPRECATION")
     fun selectRoute(route: AudioRoute) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            val target = endpoints.firstOrNull { it.identifier.toString() == route.key } ?: return
-            requestCallEndpointChange(target, mainExecutor, object : OutcomeReceiver<Void, CallEndpointException> {
-                override fun onResult(result: Void?) {}
-                override fun onError(error: CallEndpointException) {}
-            })
-            return
+            // Ids can be re-issued between refreshes, so fall back to matching kind + name.
+            val target = endpoints.firstOrNull { it.identifier.toString() == route.key }
+                ?: endpoints.firstOrNull { it.endpointName.toString() == route.name && kindOf(it) == route.kind }
+            if (target != null) {
+                requestCallEndpointChange(target, mainExecutor, object : OutcomeReceiver<Void, CallEndpointException> {
+                    override fun onResult(result: Void?) {}
+                    override fun onError(error: CallEndpointException) { legacySelect(route) }
+                })
+                return
+            }
         }
+        legacySelect(route)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    private fun kindOf(e: CallEndpoint) = when (e.endpointType) {
+        CallEndpoint.TYPE_EARPIECE -> RouteKind.EARPIECE
+        CallEndpoint.TYPE_SPEAKER -> RouteKind.SPEAKER
+        CallEndpoint.TYPE_WIRED_HEADSET -> RouteKind.WIRED
+        CallEndpoint.TYPE_BLUETOOTH -> RouteKind.BLUETOOTH
+        else -> RouteKind.OTHER
+    }
+
+    @SuppressLint("MissingPermission") // name lookup is wrapped in runCatching; address match needs no permission
+    @Suppress("DEPRECATION")
+    private fun legacySelect(route: AudioRoute) {
         when (route.kind) {
-            RouteKind.BLUETOOTH -> lastAudioState?.supportedBluetoothDevices?.firstOrNull { it.address == route.key }
+            RouteKind.BLUETOOTH -> lastAudioState?.supportedBluetoothDevices
+                ?.firstOrNull { it.address == route.key || runCatching { it.name }.getOrNull() == route.name }
                 ?.let { requestBluetoothAudio(it) } ?: setAudioRoute(CallAudioState.ROUTE_BLUETOOTH)
             RouteKind.SPEAKER -> setAudioRoute(CallAudioState.ROUTE_SPEAKER)
             RouteKind.WIRED -> setAudioRoute(CallAudioState.ROUTE_WIRED_HEADSET)

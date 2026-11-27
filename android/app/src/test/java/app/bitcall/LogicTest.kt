@@ -74,22 +74,37 @@ class LogicTest {
 }
 
 class AudioRouteTest {
-    private val ear = app.bitcall.telecom.AudioRoute("ear", app.bitcall.telecom.RouteKind.EARPIECE, "Phone")
-    private val spk = app.bitcall.telecom.AudioRoute("spk", app.bitcall.telecom.RouteKind.SPEAKER, "Speaker")
-    private val buds = app.bitcall.telecom.AudioRoute("aa:bb", app.bitcall.telecom.RouteKind.BLUETOOTH, "Pixel Buds")
-    private val cm = app.bitcall.telecom.CallManager
+    private fun r(key: String, kind: app.bitcall.telecom.RouteKind, name: String, watch: Boolean = false) =
+        app.bitcall.telecom.AudioRoute(key, kind, name, watch)
+    private val ear = r("ear", app.bitcall.telecom.RouteKind.EARPIECE, "Phone")
+    private val spk = r("spk", app.bitcall.telecom.RouteKind.SPEAKER, "Speaker")
+    private val buds = r("id-1", app.bitcall.telecom.RouteKind.BLUETOOTH, "Pixel Buds")
+    private val watch = r("id-2", app.bitcall.telecom.RouteKind.BLUETOOTH, "Galaxy Watch7", watch = true)
+    private val P = app.bitcall.telecom.AudioPolicy
+    private fun move(known: Set<String>, routes: List<app.bitcall.telecom.AudioRoute>, cur: app.bitcall.telecom.AudioRoute?, picked: Boolean = false, never: Set<String> = emptySet()) =
+        P.autoMove(known, routes, cur, picked, true, never)
 
-    @Test fun switchesToHeadphonesWhenTheyConnect() {
-        assertEquals(buds, cm.newHeadset(emptySet(), listOf(ear, spk, buds), spk))
+    @Test fun switchesToHeadphonesWhenTheyConnect() = assertEquals(buds, move(emptySet(), listOf(ear, spk, buds), spk))
+
+    @Test fun neverAutoConnectsToAWatch() = assertEquals(null, move(emptySet(), listOf(ear, spk, watch), ear))
+
+    @Test fun movesOffAWatchAndroidPicked() {
+        assertEquals(buds, move(setOf(P.identity(buds), P.identity(watch)), listOf(ear, spk, buds, watch), watch))
+        assertEquals(ear, move(setOf(P.identity(watch)), listOf(ear, spk, watch), watch))
     }
 
-    @Test fun leavesItAloneOnceKnown() {
-        // User picked Speaker by hand while the buds were already connected.
-        assertEquals(null, cm.newHeadset(setOf("aa:bb"), listOf(ear, spk, buds), spk))
+    @Test fun watchStaysIfUserPickedIt() = assertEquals(null, move(setOf(P.identity(watch)), listOf(ear, watch), watch, picked = true))
+
+    @Test fun manualSwitchSticksEvenWhenIdsChange() {
+        // Android re-issued the buds' id after the user chose Speaker: same name, so not "new".
+        val budsNewId = r("id-99", app.bitcall.telecom.RouteKind.BLUETOOTH, "Pixel Buds")
+        assertEquals(null, move(setOf(P.identity(buds)), listOf(ear, spk, budsNewId), spk, picked = true))
     }
 
-    @Test fun noSwitchWithoutHeadphonesOrWhenAlreadyOnThem() {
-        assertEquals(null, cm.newHeadset(emptySet(), listOf(ear, spk), ear))
-        assertEquals(null, cm.newHeadset(emptySet(), listOf(ear, spk, buds), buds))
+    @Test fun respectsNeverAutoList() = assertEquals(null, move(emptySet(), listOf(ear, buds), ear, never = setOf("Pixel Buds")))
+
+    @Test fun watchNamesAreRecognised() {
+        listOf("Galaxy Watch7 (A1B2)", "Pixel Watch 3", "Fitbit Sense 2", "Garmin Venu 3").forEach { assertEquals(it, true, P.isWatchName(it)) }
+        listOf("Pixel Buds Pro", "Galaxy Buds2", "AirPods Pro", "JBL Tune 510BT", "Car Kit").forEach { assertEquals(it, false, P.isWatchName(it)) }
     }
 }

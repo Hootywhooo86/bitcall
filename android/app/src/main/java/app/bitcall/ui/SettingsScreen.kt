@@ -61,6 +61,7 @@ enum class Section(val title: String, val icon: String, val group: String) {
     CUE("Magic Cue", "✨", "Call Assist"),
     RECORD("Call recording", "●", "Call Assist"),
     THEME("Theme & key colors", "🎨", "General"),
+    AUDIO("Call audio & headphones", "🎧", "General"),
     SOUNDS("Sounds & ringtone", "♪", "General"),
     DND("Do Not Disturb schedule", "☾", "General"),
     BLOCKED("Blocked numbers", "⊘", "General"),
@@ -201,6 +202,18 @@ private fun SectionBody(section: Section, onChanged: () -> Unit) {
         }
         Section.THEME -> ThemeEditor()
         Section.AI -> AiSettings()
+        Section.AUDIO -> {
+            Toggle("Auto-switch to headphones", "When headphones connect during a call, the call moves to them", s.autoHeadphones) { b, v -> b.copy(autoHeadphones = v) }
+            Info("Watches never get call audio automatically. If Android sends a call to your watch on its own, Bitcall moves it back to your headphones or the phone. You can still pick the watch from 🎧 AUDIO during a call.")
+            Text("NEVER AUTO-CONNECT (${s.neverAutoAudio.size})", style = px(8, p.accent), modifier = Modifier.padding(top = 12.dp))
+            if (s.neverAutoAudio.isEmpty()) Info("During a call, long-press a device in 🎧 AUDIO to add it here.")
+            s.neverAutoAudio.sorted().forEach { name ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("🎧 $name", style = px(9, p.text), modifier = Modifier.weight(1f))
+                    Text("✕", style = px(10, p.bad), modifier = Modifier.clickable { Settings.update { it.copy(neverAutoAudio = it.neverAutoAudio - name) } }.padding(8.dp))
+                }
+            }
+        }
         Section.SOUNDS -> {
             Toggle("8-bit keypad sounds", "Every key plays its own chiptune note", s.keySounds) { b, v -> b.copy(keySounds = v) }
             Toggle("Chiptune ringtone", "Off = your normal system ringtone", s.chipRingtone) { b, v -> b.copy(chipRingtone = v) }
