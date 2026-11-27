@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -170,28 +171,57 @@ fun DrawScope.drawSparks(state: SparkState, color: Color) {
     }
 }
 
+/** Sky mood for the hour: a horizon glow colour and strength, and how bright the stars are. */
+private data class SkyTime(val glow: Color?, val glowLevels: List<Int>, val starAlpha: Float, val dayTint: Color?)
+
+private fun skyFor(hour: Int): SkyTime = when (hour) {
+    in 5..7 -> SkyTime(Color(0xFFFF9E5E), listOf(1, 2, 4, 6), 0.55f, null)               // sunrise
+    in 8..16 -> SkyTime(null, emptyList(), 0.25f, Color(0xFF3E6FB0))                      // day
+    in 17..19 -> SkyTime(Color(0xFFFF5E9E), listOf(1, 3, 5, 7), 0.6f, null)              // sunset
+    else -> SkyTime(null, emptyList(), 1f, null)                                          // night
+}
+
 /**
- * The app backdrop: a dithered gradient rising from the bottom plus slowly drifting, twinkling
- * pixel stars (dark palettes only).
+ * The app backdrop: a dithered gradient rising from the bottom, a sky that shifts with the time
+ * of day (sunrise glow, pale day, pink sunset, starry night), twinkling drifting stars and the
+ * occasional shooting star (dark palettes only).
  */
 @Composable
 fun PixelBackdrop(palette: Palette, stars: Boolean) {
+    val hour = remember { mutableIntStateOf(java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(60_000)
+            hour.intValue = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        }
+    }
+    val sky = skyFor(hour.intValue)
     Canvas(Modifier.fillMaxSize()) {
         val cell = ART_PX.toPx().toInt().coerceAtLeast(1)
         val h = size.height
+        if (palette.dark) {
+            sky.dayTint?.let { drawRect(ditherBrush(it.copy(alpha = 0.5f), 3, cell), Offset.Zero, Size(size.width, h * 0.62f)) }
+            // Horizon glow just above the ground bands at sunrise / sunset.
+            sky.glow?.let { glow ->
+                sky.glowLevels.forEachIndexed { i, level ->
+                    val top = h * (0.46f + i * 0.04f)
+                    drawRect(ditherBrush(glow.copy(alpha = 0.6f), level, cell), Offset(0f, top), Size(size.width, h * 0.04f + 1))
+                }
+            }
+        }
         // Five dithered bands fading the surface colour up from the bottom third.
         listOf(2, 4, 7, 10, 13).forEachIndexed { i, level ->
             val top = h * (0.62f + i * 0.076f)
             drawRect(ditherBrush(palette.surface, level, cell), Offset(0f, top), Size(size.width, h * 0.076f + 1))
         }
     }
-    if (stars && palette.dark) Starfield(palette)
+    if (stars && palette.dark) Starfield(palette, sky.starAlpha)
 }
 
 private class Star(val x: Float, val y: Float, val size: Int, val speed: Float, val phase: Float, val sparkle: Boolean)
 
 @Composable
-private fun Starfield(palette: Palette) {
+private fun Starfield(palette: Palette, brightness: Float) {
     val stars = remember {
         val r = Random(128)
         List(70) { Star(r.nextFloat(), r.nextFloat() * 0.7f, if (r.nextInt(6) == 0) 2 else 1, 0.6f + r.nextFloat() * 1.8f, r.nextFloat() * 6.28f, r.nextInt(9) == 0) }
@@ -210,10 +240,29 @@ private fun Starfield(palette: Palette) {
             val x = s.x * size.width
             val c = if (s.sparkle) palette.accent else palette.text
             val sz = s.size * p
-            drawRect(c.copy(alpha = tw * 0.8f), Offset(x, y), Size(sz, sz))
+            drawRect(c.copy(alpha = tw * 0.8f * brightness), Offset(x, y), Size(sz, sz))
             if (s.sparkle && tw > 0.8f) { // little "+" glint at peak brightness
                 drawRect(c.copy(alpha = (tw - 0.8f) * 4f * 0.6f), Offset(x - p, y), Size(sz + 2 * p, sz))
                 drawRect(c.copy(alpha = (tw - 0.8f) * 4f * 0.6f), Offset(x, y - p), Size(sz, sz + 2 * p))
+            }
+        }
+        // Shooting star: one every ~9 s, streaking diagonally for under a second.
+        val period = 9f
+        val n = (time / period).toInt()
+        val local = time - n * period
+        if (local < 0.9f && brightness > 0.4f) {
+            val r = Random(n)
+            val sx = size.width * (0.15f + r.nextFloat() * 0.7f)
+            val sy = size.height * (0.05f + r.nextFloat() * 0.3f)
+            val dir = if (r.nextBoolean()) 1f else -1f
+            val k = local / 0.9f
+            val hx = sx + dir * size.width * 0.45f * k
+            val hy = sy + size.height * 0.18f * k
+            repeat(9) { i -> // head plus a fading tail of art pixels
+                val tx = hx - dir * i * p * 2.2f
+                val ty = hy - i * p * 0.9f
+                val a = (1f - i / 9f) * (1f - k * 0.6f)
+                drawRect((if (i == 0) Color.White else palette.text).copy(alpha = a), Offset(tx, ty), Size(if (i == 0) 2 * p else p, if (i == 0) 2 * p else p))
             }
         }
     }

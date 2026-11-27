@@ -2,6 +2,7 @@ package app.bitcall.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -35,6 +36,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.bitcall.assist.ChipSound
+import kotlinx.coroutines.launch
 import app.bitcall.data.Contact
 import app.bitcall.data.Phone
 import app.bitcall.data.Settings
@@ -53,6 +55,8 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
     val context = LocalContext.current
     var speedDialFor by remember { mutableStateOf<Int?>(null) }
     var adding by remember { mutableStateOf(false) }
+    val shatter = remember { ShatterState() }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     // T9 smart search: typed digits match names (2=ABC...) or numbers.
     val matches = remember(digits, contacts) {
@@ -82,13 +86,14 @@ fun DialerScreen(digits: String, setDigits: (String) -> Unit, contacts: List<Con
             IconButton(onClick = { adding = true }, enabled = digits.isNotEmpty()) {
                 Icon(Icons.Filled.PersonAdd, "Add contact", tint = if (digits.isNotEmpty()) p.dim else p.bg)
             }
-            Text(
-                digits,
-                style = px(if (digits.length > 12) 14 else 20, p.accent, glow = p.accent),
-                textAlign = TextAlign.Center, maxLines = 1,
-                modifier = Modifier.weight(1f).clickable { setDigits("") },
-            )
-            IconButton(onClick = { setDigits(digits.dropLast(1)) }, enabled = digits.isNotEmpty()) {
+            // Digits drop in like falling blocks; deleting one shatters it into pixel bits.
+            Box(Modifier.weight(1f).clickable { setDigits("") }, contentAlignment = Alignment.Center) {
+                DroppingDigits(digits, if (digits.length > 12) 14 else 20, p.accent, shatter)
+            }
+            IconButton(onClick = {
+                if (digits.isNotEmpty()) scope.launch { shatter.fire() }
+                setDigits(digits.dropLast(1))
+            }, enabled = digits.isNotEmpty()) {
                 Icon(Icons.AutoMirrored.Filled.Backspace, "Delete", tint = if (digits.isNotEmpty()) p.dim else p.bg)
             }
         }

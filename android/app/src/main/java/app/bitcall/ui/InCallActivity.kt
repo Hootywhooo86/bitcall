@@ -88,7 +88,7 @@ class InCallActivity : ComponentActivity() {
                 // Keep the last call on screen for a moment so "CALL ENDED · 4:12" is visible.
                 var last by remember { mutableStateOf<CallUi?>(null) }
                 if (primary != null) last = primary
-                LaunchedEffect(primary == null) { if (primary == null) { delay(1500); finish() } }
+                LaunchedEffect(primary == null) { if (primary == null) { delay(3200); finish() } }
                 val shown = primary ?: last?.copy(state = Call.STATE_DISCONNECTED)
                 if (shown != null) InCallScreen(shown)
             }
@@ -120,6 +120,24 @@ private fun InCallScreen(ui: CallUi) {
     // With nothing to show in the middle, the caller block gets the space instead of leaving a gap.
     val hasContent = panel != Panel.NONE || showTranscript
 
+    // Call ended: the caller waves goodbye on a "CALL OVER" card with the XP earned.
+    if (ui.state == Call.STATE_DISCONNECTED) {
+        val secs = remember { if (ui.connectTime > 0) (System.currentTimeMillis() - ui.connectTime) / 1000 else 0L }
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CallOverCard(ui.name ?: Phone.pretty(ui.number), ui.photoUri, ui.enemy, secs, ui.incoming)
+        }
+        return
+    }
+    // "READY… GO!" the moment the other side picks up (or you answer).
+    var lastState by remember { mutableStateOf(ui.state) }
+    var goSignal by remember { mutableStateOf(false) }
+    LaunchedEffect(ui.state) {
+        if (ui.state == Call.STATE_ACTIVE && lastState != Call.STATE_ACTIVE && lastState != Call.STATE_HOLDING) goSignal = true
+        lastState = ui.state
+    }
+
+    Box(Modifier.fillMaxSize()) {
+    if (ringing && ui.enemy) SirenOverlay()
     Column(
         Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -137,7 +155,7 @@ private fun InCallScreen(ui: CallUi) {
         )
         if (!hasContent) Spacer(Modifier.weight(1f))
         Spacer(Modifier.height(8.dp))
-        RingingAvatar(ui, active = ringing || dialing, size = if (hasContent) 96.dp else 176.dp)
+        RingingAvatar(ui, active = ringing || dialing, size = if (hasContent) 96.dp else if (ringing) 132.dp else 176.dp)
         Spacer(Modifier.height(12.dp))
         Text(ui.name ?: Phone.pretty(ui.number), style = px(if (hasContent) 16 else 20, p.text, glow = p.accent), textAlign = TextAlign.Center)
         if (ui.name != null) Text(Phone.pretty(ui.number), style = px(11, p.dim), modifier = Modifier.padding(top = 8.dp))
@@ -150,8 +168,14 @@ private fun InCallScreen(ui: CallUi) {
         }
 
         when (hold) {
-            HoldState.LISTENING -> Banner("⏸ HOLD FOR ME: listening for a person… (you're muted)", p.surface2) { CallManager.stopHoldForMe() }
-            HoldState.HUMAN -> Banner("🎉 SOMEONE'S ON THE LINE! TAP TO TALK", p.good) { CallManager.stopHoldForMe() }
+            HoldState.LISTENING -> {
+                HoldSprite(humanFound = false)
+                Banner("⏸ HOLD FOR ME: listening for a person… (you're muted)", p.surface2) { CallManager.stopHoldForMe() }
+            }
+            HoldState.HUMAN -> {
+                HoldSprite(humanFound = true)
+                Banner("🎉 SOMEONE'S ON THE LINE! TAP TO TALK", p.good) { CallManager.stopHoldForMe() }
+            }
             HoldState.OFF -> {}
         }
 
@@ -209,14 +233,11 @@ private fun InCallScreen(ui: CallUi) {
         }
 
         if (ringing) {
-            Row(Modifier.fillMaxWidth().padding(bottom = 20.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
-                RoundAction(p.bad, Icons.Filled.CallEnd, "DECLINE") { CallManager.hangup() }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    PixelChip("💬 REPLY", panel == Panel.REPLY) { panel = if (panel == Panel.REPLY) Panel.NONE else Panel.REPLY }
-                    Spacer(Modifier.height(8.dp))
-                    PixelChip("🔕 SILENCE", false) { CallManager.silence() }
-                }
-                RoundAction(p.good, Icons.Filled.Call, "ANSWER") { CallManager.answer() }
+            // Swipe the handset up to answer, down to decline; reply/silence on either side.
+            Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                PixelChip("💬 REPLY", panel == Panel.REPLY) { panel = if (panel == Panel.REPLY) Panel.NONE else Panel.REPLY }
+                SwipeToAnswer(onAnswer = { CallManager.answer() }, onDecline = { CallManager.hangup() })
+                PixelChip("🔕 MUTE", false) { CallManager.silence() }
             }
         } else if (ui.state != Call.STATE_DISCONNECTED) {
             val grid = buildList<Triple<String, Boolean, () -> Unit>> {
@@ -262,6 +283,8 @@ private fun InCallScreen(ui: CallUi) {
             RoundAction(p.bad, Icons.Filled.CallEnd, "END") { CallManager.hangup() }
             Spacer(Modifier.height(16.dp))
         }
+    }
+    ReadyGo(goSignal)
     }
 }
 
@@ -367,7 +390,7 @@ private fun RingingAvatar(ui: CallUi, active: Boolean, size: androidx.compose.ui
             }
         }
         val bob = idleBob(active)
-        Box(Modifier.offset(y = ART_PX * bob)) { PixelAvatar(ui.name ?: ui.number, ui.photoUri, size, ui.enemy) }
+        Box(Modifier.offset(y = ART_PX * bob).shake(active && ui.enemy)) { PixelAvatar(ui.name ?: ui.number, ui.photoUri, size, ui.enemy) }
     }
 }
 

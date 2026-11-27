@@ -158,6 +158,27 @@ fun Home(activity: MainActivity, incomingDial: MutableStateFlow<String?>) {
     }
     BackHandler(settings) { settings = false }
 
+    // Missed calls since Recents was last opened → wobbling badge on the tab.
+    val seenPrefs = remember { context.getSharedPreferences("seen", android.content.Context.MODE_PRIVATE) }
+    var recentsSeen by remember { mutableStateOf(seenPrefs.getLong("recents", System.currentTimeMillis())) }
+    LaunchedEffect(tab) {
+        if (tab == Tab.RECENTS) {
+            recentsSeen = System.currentTimeMillis()
+            seenPrefs.edit().putLong("recents", recentsSeen).apply()
+        }
+    }
+    val newMissed = remember(calls, recentsSeen) { calls.count { it.missed && it.date > recentsSeen } }
+
+    // New badges from the call log → "ACHIEVEMENT UNLOCKED" toasts (first run just records them).
+    var achievementQueue by remember { mutableStateOf<List<String>>(emptyList()) }
+    LaunchedEffect(calls) {
+        if (calls.isEmpty()) return@LaunchedEffect
+        val badges = CallLogRepo.stats(calls).badges
+        val known = seenPrefs.getStringSet("badges", null)
+        if (known != null) achievementQueue = achievementQueue + badges.filter { it !in known && it !in achievementQueue }
+        seenPrefs.edit().putStringSet("badges", badges.toSet() + (known ?: emptySet())).apply()
+    }
+
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
         if (settings) {
             SettingsScreen(onBack = { settings = false; settingsSection = null }, onChanged = { refresh++ }, initial = settingsSection)
@@ -210,6 +231,8 @@ fun Home(activity: MainActivity, incomingDial: MutableStateFlow<String?>) {
                 Tab.CONTACTS -> ContactsScreen(contacts, onChanged = { refresh++ }, onOpen = { details = it.id })
                 Tab.VOICEMAIL -> VoicemailScreen()
             }
+            PixelDissolve(tab, p.bg)
+            AchievementToast(achievementQueue) { shown -> achievementQueue = achievementQueue - shown }
         }
         Row(Modifier.fillMaxWidth().background(p.surface).padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
             Tab.entries.forEach { t ->
@@ -220,7 +243,10 @@ fun Home(activity: MainActivity, incomingDial: MutableStateFlow<String?>) {
                 ) {
                     // Selected tab icon hops up with a springy bounce.
                     val hop by animateDpAsState(if (sel) (-6).dp else 0.dp, spring(dampingRatio = 0.35f, stiffness = 600f), label = "hop")
-                    Icon(t.icon, t.label, tint = if (sel) p.accent else p.dim, modifier = Modifier.offset(y = hop))
+                    Box {
+                        Icon(t.icon, t.label, tint = if (sel) p.accent else p.dim, modifier = Modifier.offset(y = hop))
+                        if (t == Tab.RECENTS) WobbleBadge(newMissed, Modifier.align(Alignment.TopEnd).offset(x = 12.dp, y = (-6).dp))
+                    }
                     Text(t.label, style = px(7, if (sel) p.accent else p.dim), modifier = Modifier.padding(top = 4.dp))
                 }
             }

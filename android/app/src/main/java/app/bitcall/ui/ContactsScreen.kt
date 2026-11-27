@@ -66,6 +66,7 @@ fun ContactsScreen(contacts: List<Contact>, onChanged: () -> Unit, onOpen: (Cont
                 Text("+ ADD", style = px(9, onColor(p.accent)), modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp))
             }
         }
+        CoinRefresh(onRefresh = onChanged) {
         LazyColumn(Modifier.fillMaxSize().padding(top = 8.dp)) {
             if (favorites.isNotEmpty()) {
                 item { SectionTitle("★ Favorites · ${favorites.size}") }
@@ -81,6 +82,7 @@ fun ContactsScreen(contacts: List<Contact>, onChanged: () -> Unit, onOpen: (Cont
             if (contacts.isEmpty()) item {
                 Text("No contacts yet — tap + ADD.\nNew contacts save to your Google account.", style = px(8, p.dim), modifier = Modifier.padding(16.dp))
             }
+        }
         }
     }
     if (adding) AddContactDialog("", onDismiss = { adding = false }, onSaved = { adding = false; onChanged() })
@@ -109,10 +111,7 @@ private fun ContactRow(c: Contact, onOpen: () -> Unit, onStar: () -> Unit) {
                 if (enemy) EnemyBadge(Modifier.padding(start = 6.dp))
             }
         }
-        Text(
-            if (c.starred) "★" else "☆", style = px(20, if (c.starred) p.accent else p.dim),
-            modifier = Modifier.clickable(onClick = onStar).padding(12.dp),
-        )
+        StarToggle(c.starred, 20, onStar)
     }
 }
 

@@ -106,6 +106,7 @@ fun RecentsScreen(calls: List<CallEntry>, contacts: List<Contact>, onChanged: ()
         }
     }
 
+    CoinRefresh(onRefresh = onChanged) {
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
         item { XpCard(stats) }
         nudges.forEach { n -> item { Text("💌 $n", style = px(8, p.accent), modifier = Modifier.padding(top = 10.dp)) } }
@@ -133,6 +134,7 @@ fun RecentsScreen(calls: List<CallEntry>, contacts: List<Contact>, onChanged: ()
             RecentRow(e, photos[Phone.key(e.number)], memo != null, scores[e.number] ?: 0, expanded == e.id) { expanded = if (expanded == e.id) null else e.id }
             if (expanded == e.id) RecentDetails(e, memo, contactIds[Phone.key(e.number)], onOpen, onAdd = { addNumber = e.number }, onChanged = onChanged)
         }
+    }
     }
     addNumber?.let { n -> AddContactDialog(n, onDismiss = { addNumber = null }, onSaved = { addNumber = null; onChanged() }) }
 }

@@ -69,15 +69,12 @@ fun ContactDetailsScreen(contactId: Long, calls: List<CallEntry>, onBack: () -> 
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = p.text) }
             Spacer(Modifier.weight(1f))
             info?.let { c ->
-                Text(
-                    if (c.starred) "★" else "☆", style = px(22, if (c.starred) p.accent else p.dim),
-                    modifier = Modifier.clickable {
-                        scope.launch {
-                            withContext(Dispatchers.IO) { runCatching { ContactsRepo.setStarred(context, c.id, !c.starred) } }
-                            refresh++; onChanged()
-                        }
-                    }.padding(12.dp),
-                )
+                StarToggle(c.starred, 22) {
+                    scope.launch {
+                        withContext(Dispatchers.IO) { runCatching { ContactsRepo.setStarred(context, c.id, !c.starred) } }
+                        refresh++; onChanged()
+                    }
+                }
             }
         }
         val c = info ?: return@Column
@@ -88,7 +85,8 @@ fun ContactDetailsScreen(contactId: Long, calls: List<CallEntry>, onBack: () -> 
 
         LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             item {
-                PixelAvatar(c.name, c.photoUri, 140.dp, enemy)
+                // The sprite zooms up from the list into its big frame.
+                ZoomIn { PixelAvatar(c.name, c.photoUri, 140.dp, enemy) }
                 Text(c.name, style = px(18, p.text, glow = p.accent), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 14.dp))
                 c.company?.let { Text(it, style = px(10, p.dim), modifier = Modifier.padding(top = 8.dp)) }
                 if (enemy) EnemyBadge(Modifier.padding(top = 8.dp))

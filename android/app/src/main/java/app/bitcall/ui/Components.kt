@@ -181,7 +181,22 @@ fun PixelAvatar(name: String, photoUri: String?, size: Dp, enemy: Boolean = fals
                 val seed = name.hashCode()
                 val grid = remember(seed) { creature(seed) }
                 val base = p.keys[Math.floorMod(seed, p.keys.size)]
-                Canvas(frame.background(p.surface)) { drawCreature(grid, base, p.surface) }
+                // Idle life: blink every few seconds, sometimes glance left or right.
+                var blink by remember { mutableStateOf(false) }
+                var look by remember { mutableStateOf(0) }
+                LaunchedEffect(seed) {
+                    val r = Random(seed)
+                    while (true) {
+                        kotlinx.coroutines.delay(2200L + r.nextLong(3800))
+                        if (r.nextInt(3) == 0) {
+                            look = if (r.nextBoolean()) -1 else 1
+                            kotlinx.coroutines.delay(900); look = 0
+                        } else {
+                            blink = true; kotlinx.coroutines.delay(130); blink = false
+                        }
+                    }
+                }
+                Canvas(frame.background(p.surface)) { drawCreature(grid, base, p.surface, blink, look) }
             }
         }
     }
@@ -241,17 +256,19 @@ private fun creature(seed: Int): Array<IntArray> {
 }
 
 /** Draws a creature with a dark outline, top highlight and bottom shadow. */
-private fun DrawScope.drawCreature(g: Array<IntArray>, base: Color, bg: Color) {
+private fun DrawScope.drawCreature(g: Array<IntArray>, base: Color, bg: Color, blink: Boolean = false, look: Int = 0) {
     val cell = size.width / (CS + 2)
     val outline = darken(base, 0.3f)
+    val eyeTop = g.indexOfFirst { row -> row.any { it == EYE } }
     fun on(x: Int, y: Int) = (g.getOrNull(y)?.getOrNull(x) ?: 0) != 0
     for (y in -1..CS) for (x in -1..CS) {
         val ox = (x + 1) * cell
         val oy = (y + 1) * cell
         val v = g.getOrNull(y)?.getOrNull(x) ?: 0
         val c = when {
-            v == EYE -> Color.White
-            v == PUPIL -> Color(0xFF101018)
+            // Closed eyes: the top row becomes skin, the bottom row a dark lid line.
+            (v == EYE || v == PUPIL) && blink -> if (y == eyeTop) base else outline
+            v == EYE || v == PUPIL -> Color.White
             v == BODY && !on(x, y - 1) -> lighten(base, 0.35f)     // light from above
             v == BODY && !on(x, y + 1) -> darken(base, 0.7f)       // shade below
             v == BODY && !on(x + 1, y) && x >= CS / 2 -> darken(base, 0.82f)
@@ -260,6 +277,13 @@ private fun DrawScope.drawCreature(g: Array<IntArray>, base: Color, bg: Color) {
             else -> continue
         }
         drawRect(c, Offset(ox, oy), Size(cell + 0.5f, cell + 0.5f))
+    }
+    if (!blink && eyeTop >= 0) {
+        // Eyes are columns 5-6 and 9-10. Pupils rest inside (6, 9) and glance left (5, 9) or right (6, 10).
+        val pupils = when (look) { -1 -> listOf(5, 9); 1 -> listOf(6, 10); else -> listOf(6, 9) }
+        for (x in pupils) {
+            drawRect(Color(0xFF101018), Offset((x + 1) * cell, (eyeTop + 2) * cell), Size(cell + 0.5f, cell + 0.5f))
+        }
     }
     // Ground shadow, dithered.
     drawRect(ditherBrush(darken(bg, 0.6f), 8, cell.toInt().coerceAtLeast(1)), Offset(cell * 4, cell * (CS + 0.6f)), Size(cell * (CS - 6), cell))
